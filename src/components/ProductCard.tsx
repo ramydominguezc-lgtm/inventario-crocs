@@ -5,9 +5,10 @@ import { Product } from '../types';
 interface Props {
   product: Product;
   onPress: () => void;
+  onLongPress?: () => void;
 }
 
-export default function ProductCard({ product, onPress }: Props) {
+export default function ProductCard({ product, onPress, onLongPress }: Props) {
   const totalStock =
     product.product_variants?.reduce((sum, v) => (v.is_active ? sum + v.stock : sum), 0) ?? 0;
 
@@ -18,6 +19,8 @@ export default function ProductCard({ product, onPress }: Props) {
         pressed && styles.containerPressed,
       ]}
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={400}
       accessibilityRole="button"
       accessibilityLabel={`Ver ${product.name}`}
     >

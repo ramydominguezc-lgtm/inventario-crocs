@@ -10,6 +10,7 @@ import {
   Pressable,
   TextInput,
   Platform,
+  Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
@@ -67,6 +68,26 @@ export default function ProductListScreen({ navigation, route }: Props) {
       ),
     });
   }, [navigation, category]);
+
+  function confirmarEliminar(producto: Product) {
+    Alert.alert(
+      'Eliminar producto',
+      `¿Eliminar "${producto.name}"? No se puede deshacer.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            await supabase.from('product_variants').delete().eq('product_id', producto.id);
+            const { error } = await supabase.from('products').delete().eq('id', producto.id);
+            if (error) Alert.alert('Error', 'No se pudo eliminar el producto.');
+            else setProductos((prev) => prev.filter((p) => p.id !== producto.id));
+          },
+        },
+      ]
+    );
+  }
 
   const productosFiltrados = busqueda.trim()
     ? productos.filter((p) =>
@@ -128,6 +149,7 @@ export default function ProductListScreen({ navigation, route }: Props) {
           <ProductCard
             product={item}
             onPress={() => navigation.navigate('ProductDetail', { productId: item.id })}
+            onLongPress={() => confirmarEliminar(item)}
           />
         )}
         ListEmptyComponent={

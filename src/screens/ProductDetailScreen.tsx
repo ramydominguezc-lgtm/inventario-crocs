@@ -69,22 +69,7 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
     setVariantes(data.product_variants ?? []);
     setCargando(false);
 
-    navigation.setOptions({
-      title: data.name,
-      headerRight: () => (
-        <Pressable
-          onPress={() => confirmarEliminar(data.id)}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          style={({ pressed }) => [
-            { opacity: pressed ? 0.4 : 1, paddingLeft: 8 },
-            // @ts-ignore
-            Platform.OS === 'web' ? { cursor: 'pointer' } : {},
-          ]}
-        >
-          <Text style={{ fontSize: 14, color: '#AAAAAA' }}>Eliminar</Text>
-        </Pressable>
-      ),
-    });
+    navigation.setOptions({ title: data.name });
   }
 
   function confirmarEliminar(id: string) {
@@ -314,6 +299,14 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
           {guardando ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.botonTexto}>Guardar cambios</Text>}
         </Pressable>
 
+        {/* Eliminar producto */}
+        <Pressable
+          style={({ pressed }) => [styles.botonEliminar, pressed && { opacity: 0.7 }]}
+          onPress={() => producto && confirmarEliminar(producto.id)}
+        >
+          <Text style={styles.botonEliminarTexto}>Eliminar producto</Text>
+        </Pressable>
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -376,4 +369,6 @@ const styles = StyleSheet.create({
   botonGuardar: { marginHorizontal: 20, marginTop: 24, backgroundColor: '#000000', paddingVertical: 16, alignItems: 'center', minHeight: 52 },
   botonDesactivado: { opacity: 0.4 },
   botonTexto: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  botonEliminar: { marginHorizontal: 20, marginTop: 12, paddingVertical: 16, alignItems: 'center', minHeight: 52, borderWidth: 1.5, borderColor: '#FF3B30' },
+  botonEliminarTexto: { color: '#FF3B30', fontSize: 16, fontWeight: '600' },
 });
