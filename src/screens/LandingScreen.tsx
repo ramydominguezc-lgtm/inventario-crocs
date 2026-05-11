@@ -1,118 +1,194 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  StatusBar,
-  ActivityIndicator,
+  View, Text, Pressable, StyleSheet, SafeAreaView,
+  StatusBar, ActivityIndicator, Share, Platform, Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
-import { RootStackParamList, ProductCategory } from '../types';
+import { RootStackParamList, ProductCategory, Product } from '../types';
+import { useColors, Colors } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Landing'>;
 
 const CATEGORIAS: { label: string; value: ProductCategory; descripcion: string }[] = [
-  { label: 'Crocs', value: 'crocs', descripcion: 'Sandalias y zapatos' },
-  { label: 'Charms', value: 'charms', descripcion: 'Jibbitz y accesorios' },
-  { label: 'Otros', value: 'otros', descripcion: 'Otros productos' },
+  { label: 'Crocs',   value: 'crocs',   descripcion: 'Sandalias y zapatos' },
+  { label: 'Charms',  value: 'charms',  descripcion: 'Jibbitz y accesorios' },
+  { label: 'Otros',   value: 'otros',   descripcion: 'Otros productos' },
 ];
 
-type Conteos = Partial<Record<ProductCategory, number>>;
+interface ResumenCategoria {
+  productos: number;
+  piezas: number;
+}
+
+type Resumen = Partial<Record<ProductCategory, ResumenCategoria>>;
 
 export default function LandingScreen({ navigation }: Props) {
-  const [conteos, setConteos] = useState<Conteos>({});
+  const C = useColors();
+  const [resumen, setResumen] = useState<Resumen>({});
   const [cargando, setCargando] = useState(true);
+  const [exportando, setExportando] = useState(false);
 
-  useEffect(() => {
-    cargarConteos();
-  }, []);
-
-  async function cargarConteos() {
+  const cargarResumen = useCallback(async () => {
     const { data } = await supabase
       .from('products')
-      .select('category')
-      .eq('is_active', true);
+      .select('category, is_active, product_variants(stock, is_active)');
 
     if (data) {
-      const c: Conteos = {};
-      for (const row of data) {
-        const cat = row.category as ProductCategory;
-        c[cat] = (c[cat] ?? 0) + 1;
+      const r: Resumen = {};
+      for (const p of data as any[]) {
+        const cat = p.category as ProductCategory;
+        if (!r[cat]) r[cat] = { productos: 0, piezas: 0 };
+        if (p.is_active) r[cat]!.productos += 1;
+        const piezas = (p.product_variants ?? [])
+          .filter((v: any) => v.is_active)
+          .reduce((s: number, v: any) => s + (v.stock ?? 0), 0);
+        r[cat]!.piezas += piezas;
       }
-      setConteos(c);
+      setResumen(r);
     }
     setCargando(false);
+  }, []);
+
+  useFocusEffect(useCallback(() => { cargarResumen(); }, [cargarResumen]));
+
+  async function exportarCSV() {
+    setExportando(true);
+    const { data } = await supabase
+      .from('products')
+      .select('name, category, price_mxn, is_active, product_variants(size_label, stock, is_active)')
+      .order('category')
+      .order('name');
+
+    if (!data) {
+      setExportando(false);
+      Alert.alert('Error', 'No se pudo exportar.');
+      return;
+    }
+
+    const filas: string[] = ['Categoría,Nombre,Precio MXN,Activo,Talla,Stock'];
+    for (const p of data as any[]) {
+      const variantes = (p.product_variants ?? []).filter((v: any) => v.is_active);
+      if (variantes.length === 0) {
+        filas.push(`${p.category},"${p.name}",${p.price_mxn ?? ''},${p.is_active ? 'Sí' : 'No'},,`);
+      } else {
+        for (const v of variantes) {
+          filas.push(`${p.category},"${p.name}",${p.price_mxn ?? ''},${p.is_active ? 'Sí' : 'No'},${v.size_label},${v.stock}`);
+        }
+      }
+    }
+    const csv = filas.join('\n');
+    setExportando(false);
+
+    if (Platform.OS === 'web') {
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `inventario-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      await Share.share({ message: csv, title: 'Inventario Crocs MTY' });
+    }
   }
 
+  const s = getStyles(C);
+
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      <View style={styles.container}>
+    <SafeAreaView style={s.safe}>
+      <StatusBar barStyle={C.bg === '#FFFFFF' ? 'dark-content' : 'light-content'} backgroundColor={C.bg} />
+      <View style={s.container}>
 
-        <View style={styles.header}>
-          <Text style={styles.titulo}>Inventario</Text>
-          <Text style={styles.subtitulo}>Crocs Monterrey</Text>
+        <View style={s.header}>
+          <Text style={s.titulo}>Inventario</Text>
+          <Text style={s.subtitulo}>Crocs Monterrey</Text>
         </View>
 
-        <View style={styles.lista}>
-          {CATEGORIAS.map((cat, index) => (
-            <TouchableOpacity
-              key={cat.value}
-              style={[styles.fila, index < CATEGORIAS.length - 1 && styles.filaBorde]}
-              onPress={() => navigation.navigate('ProductList', { category: cat.value })}
-              activeOpacity={0.6}
-            >
-              <View style={styles.filaInfo}>
-                <Text style={styles.filaLabel}>{cat.label}</Text>
-                <Text style={styles.filaDesc}>{cat.descripcion}</Text>
-              </View>
-              <View style={styles.filaRight}>
-                {cargando ? (
-                  <ActivityIndicator size="small" color="#CCCCCC" />
-                ) : (
-                  <Text style={styles.conteo}>
-                    {conteos[cat.value] ?? 0} productos
-                  </Text>
-                )}
-                <Text style={styles.flecha}>›</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+        <View style={s.lista}>
+          {CATEGORIAS.map((cat, index) => {
+            const datos = resumen[cat.value];
+            return (
+              <Pressable
+                key={cat.value}
+                style={({ pressed }) => [s.fila, index < CATEGORIAS.length - 1 && s.filaBorde, pressed && s.filaPressed]}
+                onPress={() => navigation.navigate('ProductList', { category: cat.value })}
+              >
+                <View style={s.filaInfo}>
+                  <Text style={s.filaLabel}>{cat.label}</Text>
+                  <Text style={s.filaDesc}>{cat.descripcion}</Text>
+                </View>
+                <View style={s.filaRight}>
+                  {cargando ? (
+                    <ActivityIndicator size="small" color={C.textPlaceholder} />
+                  ) : (
+                    <View style={s.filaNumeros}>
+                      <Text style={s.conteoProductos}>{datos?.productos ?? 0} productos</Text>
+                      <Text style={s.conteoPiezas}>{datos?.piezas ?? 0} piezas</Text>
+                    </View>
+                  )}
+                  <Text style={s.flecha}>›</Text>
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
 
-        <TouchableOpacity style={styles.cerrarSesion} onPress={() => supabase.auth.signOut()}>
-          <Text style={styles.cerrarSesionTexto}>Cerrar sesión</Text>
-        </TouchableOpacity>
+        <View style={s.footerBotones}>
+          <Pressable
+            style={({ pressed }) => [s.botonExportar, pressed && { opacity: 0.6 }, exportando && { opacity: 0.4 }]}
+            onPress={exportarCSV}
+            disabled={exportando}
+          >
+            {exportando
+              ? <ActivityIndicator size="small" color={C.textMuted} />
+              : <Text style={s.botonExportarTexto}>Exportar CSV</Text>
+            }
+          </Pressable>
+
+          <Pressable style={s.cerrarSesion} onPress={() => supabase.auth.signOut()}>
+            <Text style={s.cerrarSesionTexto}>Cerrar sesión</Text>
+          </Pressable>
+        </View>
 
       </View>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#FFFFFF' },
-  container: { flex: 1, paddingHorizontal: 20 },
-  header: { paddingTop: 48, paddingBottom: 40 },
-  titulo: { fontSize: 32, fontWeight: '600', color: '#000000', letterSpacing: -0.5 },
-  subtitulo: { fontSize: 16, fontWeight: '400', color: '#888888', marginTop: 4 },
-  lista: { borderTopWidth: 1, borderTopColor: '#F0F0F0' },
-  fila: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 22,
-    minHeight: 72,
-  },
-  filaBorde: { borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  filaInfo: { flex: 1 },
-  filaLabel: { fontSize: 18, fontWeight: '600', color: '#000000' },
-  filaDesc: { fontSize: 13, fontWeight: '400', color: '#AAAAAA', marginTop: 2 },
-  filaRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  conteo: { fontSize: 13, fontWeight: '400', color: '#AAAAAA' },
-  flecha: { fontSize: 24, color: '#CCCCCC' },
-  cerrarSesion: { position: 'absolute', bottom: 32, right: 0 },
-  cerrarSesionTexto: { fontSize: 13, color: '#CCCCCC', fontWeight: '400' },
-});
+function getStyles(C: Colors) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.bg },
+    container: { flex: 1, paddingHorizontal: 20 },
+    header: { paddingTop: 48, paddingBottom: 40 },
+    titulo: { fontSize: 32, fontWeight: '600', color: C.text, letterSpacing: -0.5 },
+    subtitulo: { fontSize: 16, color: C.textMuted, marginTop: 4 },
+    lista: { borderTopWidth: 1, borderTopColor: C.border },
+    fila: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingVertical: 20, minHeight: 72,
+    },
+    filaPressed: { opacity: 0.6 },
+    filaBorde: { borderBottomWidth: 1, borderBottomColor: C.border },
+    filaInfo: { flex: 1 },
+    filaLabel: { fontSize: 18, fontWeight: '600', color: C.text },
+    filaDesc: { fontSize: 13, color: C.textFaint, marginTop: 2 },
+    filaRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    filaNumeros: { alignItems: 'flex-end', gap: 2 },
+    conteoProductos: { fontSize: 13, color: C.textFaint },
+    conteoPiezas: { fontSize: 14, fontWeight: '600', color: C.textMuted },
+    flecha: { fontSize: 24, color: C.textPlaceholder },
+    footerBotones: {
+      position: 'absolute', bottom: 32, left: 20, right: 0,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    },
+    botonExportar: {
+      borderWidth: 1, borderColor: C.borderInput,
+      paddingHorizontal: 16, paddingVertical: 9, minHeight: 40, justifyContent: 'center',
+    },
+    botonExportarTexto: { fontSize: 13, fontWeight: '600', color: C.textMuted },
+    cerrarSesion: {},
+    cerrarSesionTexto: { fontSize: 13, color: C.textPlaceholder },
+  });
+}

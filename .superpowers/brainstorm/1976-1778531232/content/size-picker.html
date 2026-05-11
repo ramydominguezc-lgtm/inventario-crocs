@@ -1,0 +1,123 @@
+<h2>¿Cómo agregar tallas al crear un Croc?</h2>
+<p class="subtitle">Actualmente hay que escribir cada talla a mano. ¿Cuál de estos enfoques prefieres?</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Grid de tallas preestablecidas</h3>
+      <p>Tapas las tallas que tienes — quedan marcadas. Luego defines el stock de cada una.</p>
+      <div style="margin-top:12px;background:#f5f5f5;border-radius:8px;padding:12px;">
+        <div style="font-size:11px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Selecciona tallas disponibles</div>
+        <!-- Kids row -->
+        <div style="font-size:10px;color:#aaa;margin-bottom:4px;">NIÑOS</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+          <div style="padding:6px 10px;border:1.5px solid #000;background:#000;color:#fff;font-size:12px;font-weight:600;cursor:pointer;border-radius:2px;">C4/5</div>
+          <div style="padding:6px 10px;border:1.5px solid #000;background:#000;color:#fff;font-size:12px;font-weight:600;cursor:pointer;border-radius:2px;">C6/7</div>
+          <div style="padding:6px 10px;border:1.5px solid #e0e0e0;background:#fff;color:#ccc;font-size:12px;font-weight:600;cursor:pointer;border-radius:2px;">C8/9</div>
+          <div style="padding:6px 10px;border:1.5px solid #e0e0e0;background:#fff;color:#ccc;font-size:12px;font-weight:600;cursor:pointer;border-radius:2px;">C10/11</div>
+          <div style="padding:6px 10px;border:1.5px solid #e0e0e0;background:#fff;color:#ccc;font-size:12px;font-weight:600;cursor:pointer;border-radius:2px;">C12/13</div>
+        </div>
+        <!-- Adults row -->
+        <div style="font-size:10px;color:#aaa;margin-bottom:4px;">ADULTOS</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
+          <div style="padding:6px 10px;border:1.5px solid #e0e0e0;background:#fff;color:#ccc;font-size:12px;font-weight:600;cursor:pointer;border-radius:2px;">M4/W6</div>
+          <div style="padding:6px 10px;border:1.5px solid #e0e0e0;background:#fff;color:#ccc;font-size:12px;font-weight:600;cursor:pointer;border-radius:2px;">M5/W7</div>
+          <div style="padding:6px 10px;border:1.5px solid #000;background:#000;color:#fff;font-size:12px;font-weight:600;cursor:pointer;border-radius:2px;">M6/W8</div>
+          <div style="padding:6px 10px;border:1.5px solid #000;background:#000;color:#fff;font-size:12px;font-weight:600;cursor:pointer;border-radius:2px;">M7/W9</div>
+          <div style="padding:6px 10px;border:1.5px solid #000;background:#000;color:#fff;font-size:12px;font-weight:600;cursor:pointer;border-radius:2px;">M8/W10</div>
+          <div style="padding:6px 10px;border:1.5px solid #e0e0e0;background:#fff;color:#ccc;font-size:12px;font-weight:600;cursor:pointer;border-radius:2px;">M9/W11</div>
+          <div style="padding:6px 10px;border:1.5px solid #e0e0e0;background:#fff;color:#ccc;font-size:12px;font-weight:600;cursor:pointer;border-radius:2px;">M10/W12</div>
+          <div style="padding:6px 10px;border:1.5px solid #e0e0e0;background:#fff;color:#ccc;font-size:12px;font-weight:600;cursor:pointer;border-radius:2px;">M11/W13</div>
+        </div>
+        <!-- Selected sizes stock -->
+        <div style="border-top:1px solid #e0e0e0;padding-top:10px;">
+          <div style="font-size:11px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Stock inicial — 5 tallas seleccionadas</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f0f0f0;">
+            <span style="font-size:13px;">C4/5</span>
+            <div style="display:flex;align-items:center;">
+              <button style="width:36px;height:36px;background:#f0f0f0;border:1px solid #e0e0e0;font-size:18px;cursor:pointer;">−</button>
+              <span style="width:40px;text-align:center;font-size:15px;font-weight:600;border:1px solid #e0e0e0;height:36px;line-height:36px;">5</span>
+              <button style="width:36px;height:36px;background:#000;color:#fff;border:none;font-size:18px;cursor:pointer;">+</button>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;">
+            <span style="font-size:13px;">C6/7</span>
+            <div style="display:flex;align-items:center;">
+              <button style="width:36px;height:36px;background:#f0f0f0;border:1px solid #e0e0e0;font-size:18px;cursor:pointer;">−</button>
+              <span style="width:40px;text-align:center;font-size:15px;font-weight:600;border:1px solid #e0e0e0;height:36px;line-height:36px;">3</span>
+              <button style="width:36px;height:36px;background:#000;color:#fff;border:none;font-size:18px;cursor:pointer;">+</button>
+            </div>
+          </div>
+          <div style="font-size:11px;color:#aaa;margin-top:6px;">+ 3 tallas más...</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:#888;">
+        ✓ Muy visual, un toque por talla<br>
+        ✓ Puedes agregar talla personalizada también<br>
+        ✗ Tallas fijas (aunque editables)
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Copiar tallas de otro producto</h3>
+      <p>Seleccionas un producto existente y copias todas sus tallas (con stock en 0) al nuevo.</p>
+      <div style="margin-top:12px;background:#f5f5f5;border-radius:8px;padding:12px;">
+        <div style="font-size:11px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Copiar tallas de...</div>
+        <div style="display:flex;align-items:center;gap:8px;padding:8px;background:#fff;border:1px solid #e0e0e0;cursor:pointer;">
+          <div style="width:36px;height:36px;background:#e0e0e0;border-radius:4px;flex-shrink:0;"></div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:600;">Classic Clog Negro</div>
+            <div style="font-size:11px;color:#888;">M6/W8, M7/W9, M8/W10, M9/W11</div>
+          </div>
+          <span style="font-size:18px;color:#000;">✓</span>
+        </div>
+        <div style="font-size:11px;color:#888;margin-top:8px;padding:8px;background:#fff;border:1px solid #e8e8e8;">
+          Se copiarán las tallas: M6/W8, M7/W9, M8/W10, M9/W11 con stock = 0
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:#888;">
+        ✓ Rapidísimo si tienes modelos similares<br>
+        ✗ Necesitas tener un producto previo<br>
+        ✗ No sirve para el primer producto
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Grid de tallas + botón "agregar todas"</h3>
+      <p>Como A, pero con un botón que marca todas las tallas de adulto de un golpe, con stock 0 para editar después.</p>
+      <div style="margin-top:12px;background:#f5f5f5;border-radius:8px;padding:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div style="font-size:11px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;">Tallas adulto</div>
+          <button style="font-size:12px;font-weight:600;background:#000;color:#fff;border:none;padding:5px 10px;cursor:pointer;">Marcar todas</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+          <div style="padding:6px 10px;border:1.5px solid #000;background:#000;color:#fff;font-size:12px;font-weight:600;border-radius:2px;">M4/W6</div>
+          <div style="padding:6px 10px;border:1.5px solid #000;background:#000;color:#fff;font-size:12px;font-weight:600;border-radius:2px;">M5/W7</div>
+          <div style="padding:6px 10px;border:1.5px solid #000;background:#000;color:#fff;font-size:12px;font-weight:600;border-radius:2px;">M6/W8</div>
+          <div style="padding:6px 10px;border:1.5px solid #000;background:#000;color:#fff;font-size:12px;font-weight:600;border-radius:2px;">M7/W9</div>
+          <div style="padding:6px 10px;border:1.5px solid #000;background:#000;color:#fff;font-size:12px;font-weight:600;border-radius:2px;">M8/W10</div>
+          <div style="padding:6px 10px;border:1.5px solid #000;background:#000;color:#fff;font-size:12px;font-weight:600;border-radius:2px;">M9/W11</div>
+          <div style="padding:6px 10px;border:1.5px solid #000;background:#000;color:#fff;font-size:12px;font-weight:600;border-radius:2px;">M10/W12</div>
+          <div style="padding:6px 10px;border:1.5px solid #000;background:#000;color:#fff;font-size:12px;font-weight:600;border-radius:2px;">M11/W13</div>
+        </div>
+        <div style="font-size:11px;color:#555;padding:6px 8px;background:#fff;border:1px solid #e0e0e0;">
+          8 tallas seleccionadas — el stock de cada una empieza en 0, lo editas en detalle
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:#888;">
+        ✓ Un botón = todas las tallas listas<br>
+        ✓ Puedes desmarcar las que no tienes<br>
+        ✓ Funciona desde el primer producto
+      </div>
+    </div>
+  </div>
+
+</div>

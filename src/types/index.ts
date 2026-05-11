@@ -42,9 +42,22 @@ export interface Product {
   product_variants?: ProductVariant[];
 }
 
+export type StockMovementType = 'venta' | 'baja' | 'restock' | 'ajuste';
+
+export interface StockMovement {
+  id: string;
+  variant_id: string;
+  product_id: string;
+  delta: number;
+  type: StockMovementType;
+  created_at: string;
+  product_variants?: { size_label: string };
+}
+
 export type RootStackParamList = {
   Landing: undefined;
   ProductList: { category: ProductCategory };
   ProductDetail: { productId: string };
   AddProduct: { category: ProductCategory };
+  StockHistory: { productId: string; productName: string };
 };

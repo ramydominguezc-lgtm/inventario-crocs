@@ -1,138 +1,122 @@
 import React from 'react';
 import { View, Text, Image, Pressable, StyleSheet, Platform } from 'react-native';
 import { Product } from '../types';
+import { useColors, Colors, LOW_STOCK_THRESHOLD } from '../theme';
 
 interface Props {
   product: Product;
   onPress: () => void;
   onLongPress?: () => void;
+  reordenando?: boolean;
+  onSubir?: () => void;
+  onBajar?: () => void;
+  esPrimero?: boolean;
+  esUltimo?: boolean;
 }
 
-export default function ProductCard({ product, onPress, onLongPress }: Props) {
-  const totalStock =
-    product.product_variants?.reduce((sum, v) => (v.is_active ? sum + v.stock : sum), 0) ?? 0;
+export default function ProductCard({ product, onPress, onLongPress, reordenando, onSubir, onBajar, esPrimero, esUltimo }: Props) {
+  const C = useColors();
+  const totalStock = product.product_variants?.reduce((sum, v) => (v.is_active ? sum + v.stock : sum), 0) ?? 0;
+  const stockBajo = totalStock > 0 && totalStock <= LOW_STOCK_THRESHOLD;
+
+  const s = getStyles(C);
 
   return (
     <Pressable
-      style={({ pressed }) => [
-        styles.container,
-        pressed && styles.containerPressed,
-      ]}
-      onPress={onPress}
-      onLongPress={onLongPress}
+      style={({ pressed }) => [s.container, pressed && !reordenando && s.containerPressed]}
+      onPress={reordenando ? undefined : onPress}
+      onLongPress={reordenando ? undefined : onLongPress}
       delayLongPress={400}
       accessibilityRole="button"
       accessibilityLabel={`Ver ${product.name}`}
     >
       {product.primary_image_url ? (
-        <Image
-          source={{ uri: product.primary_image_url }}
-          style={styles.imagen}
-          resizeMode="cover"
-        />
+        <Image source={{ uri: product.primary_image_url }} style={s.imagen} resizeMode="cover" />
       ) : (
-        <View style={[styles.imagen, styles.imagenVacia]}>
-          <Text style={styles.imagenVaciaTexto}>Sin foto</Text>
+        <View style={[s.imagen, s.imagenVacia]}>
+          <Text style={s.imagenVaciaTexto}>Sin foto</Text>
         </View>
       )}
 
-      <View style={styles.info}>
-        <Text style={styles.nombre} numberOfLines={2}>{product.name}</Text>
+      <View style={s.info}>
+        <Text style={s.nombre} numberOfLines={2}>{product.name}</Text>
         {product.price_mxn != null && (
-          <Text style={styles.precio}>${product.price_mxn.toFixed(0)} MXN</Text>
+          <Text style={s.precio}>${product.price_mxn.toFixed(0)} MXN</Text>
         )}
-        <View style={styles.fila}>
-          <View style={[styles.stockBadge, totalStock === 0 && styles.stockBadgeVacio]}>
-            <Text style={[styles.stockTexto, totalStock === 0 && styles.stockTextoVacio]}>
+        <View style={s.fila}>
+          <View style={[s.stockBadge, totalStock === 0 && s.stockBadgeVacio, stockBajo && s.stockBadgeBajo]}>
+            <Text style={[s.stockTexto, totalStock === 0 && s.stockTextoVacio, stockBajo && s.stockTextoBajo]}>
               {totalStock === 0 ? 'Sin stock' : `${totalStock} pzs`}
             </Text>
           </View>
-          {!product.is_active && (
-            <Text style={styles.inactivo}>Inactivo</Text>
-          )}
+          {stockBajo && <Text style={s.stockBajoLabel}>Stock bajo</Text>}
+          {!product.is_active && <Text style={s.inactivo}>Inactivo</Text>}
         </View>
       </View>
 
-      <Text style={styles.chevron}>›</Text>
+      {reordenando ? (
+        <View style={s.reordenBotones}>
+          <Pressable
+            onPress={onSubir}
+            disabled={esPrimero}
+            hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
+            style={[s.reordenBtn, esPrimero && s.reordenBtnDesactivado]}
+          >
+            <Text style={[s.reordenTexto, esPrimero && s.reordenTextoDesactivado]}>↑</Text>
+          </Pressable>
+          <Pressable
+            onPress={onBajar}
+            disabled={esUltimo}
+            hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
+            style={[s.reordenBtn, esUltimo && s.reordenBtnDesactivado]}
+          >
+            <Text style={[s.reordenTexto, esUltimo && s.reordenTextoDesactivado]}>↓</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <Text style={s.chevron}>›</Text>
+      )}
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    // @ts-ignore — cursor solo aplica en web
-    cursor: Platform.OS === 'web' ? 'pointer' : undefined,
-  },
-  containerPressed: {
-    backgroundColor: '#F8F8F8',
-  },
-  imagen: {
-    width: 64,
-    height: 64,
-    borderRadius: 8,
-    backgroundColor: '#F5F5F5',
-  },
-  imagenVacia: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  imagenVaciaTexto: {
-    fontSize: 10,
-    color: '#CCCCCC',
-  },
-  info: {
-    flex: 1,
-    marginLeft: 14,
-    gap: 4,
-  },
-  nombre: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#000000',
-    lineHeight: 20,
-  },
-  precio: {
-    fontSize: 13,
-    fontWeight: '400',
-    color: '#555555',
-  },
-  fila: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 2,
-  },
-  stockBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    backgroundColor: '#000000',
-    borderRadius: 3,
-  },
-  stockBadgeVacio: {
-    backgroundColor: '#F0F0F0',
-  },
-  stockTexto: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  stockTextoVacio: {
-    color: '#AAAAAA',
-  },
-  inactivo: {
-    fontSize: 11,
-    color: '#CCCCCC',
-  },
-  chevron: {
-    fontSize: 22,
-    color: '#CCCCCC',
-    marginLeft: 8,
-  },
-});
+function getStyles(C: Colors) {
+  return StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      paddingHorizontal: 20,
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: C.border,
+      backgroundColor: C.bg,
+      alignItems: 'center',
+      // @ts-ignore
+      cursor: Platform.OS === 'web' ? 'pointer' : undefined,
+    },
+    containerPressed: { backgroundColor: C.surface },
+    imagen: { width: 64, height: 64, borderRadius: 8, backgroundColor: C.surface },
+    imagenVacia: { justifyContent: 'center', alignItems: 'center' },
+    imagenVaciaTexto: { fontSize: 10, color: C.textPlaceholder },
+    info: { flex: 1, marginLeft: 14, gap: 4 },
+    nombre: { fontSize: 15, fontWeight: '600', color: C.text, lineHeight: 20 },
+    precio: { fontSize: 13, color: C.textSub },
+    fila: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
+    stockBadge: { paddingHorizontal: 8, paddingVertical: 3, backgroundColor: C.accent, borderRadius: 3 },
+    stockBadgeVacio: { backgroundColor: C.border },
+    stockBadgeBajo: { backgroundColor: C.stockBajoBg, borderWidth: 1, borderColor: C.stockBajoBorder },
+    stockTexto: { fontSize: 11, fontWeight: '600', color: C.accentFg },
+    stockTextoVacio: { color: C.textMuted },
+    stockTextoBajo: { color: C.stockBajoText },
+    stockBajoLabel: { fontSize: 11, color: C.warning, fontWeight: '600' },
+    inactivo: { fontSize: 11, color: C.textPlaceholder },
+    chevron: { fontSize: 22, color: C.textPlaceholder, marginLeft: 8 },
+    reordenBotones: { flexDirection: 'column', gap: 2, marginLeft: 8 },
+    reordenBtn: {
+      width: 36, height: 36, justifyContent: 'center', alignItems: 'center',
+      backgroundColor: C.surface, borderWidth: 1, borderColor: C.borderInput,
+    },
+    reordenBtnDesactivado: { opacity: 0.25 },
+    reordenTexto: { fontSize: 16, color: C.text },
+    reordenTextoDesactivado: { color: C.textPlaceholder },
+  });
+}

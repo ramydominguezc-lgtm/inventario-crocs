@@ -1,0 +1,100 @@
+<h2>¿Dónde poner los controles rápidos de stock?</h2>
+<p class="subtitle">Elige el enfoque que mejor se adapte a cómo usas la app</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Directo en la lista</h3>
+      <p>Cada producto muestra botones − y + para ajustar stock sin entrar al detalle.</p>
+      <div style="margin-top:12px;background:#f5f5f5;border-radius:8px;padding:12px;">
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #eee;">
+          <div style="width:48px;height:48px;background:#e0e0e0;border-radius:6px;flex-shrink:0;"></div>
+          <div style="flex:1;">
+            <div style="font-weight:600;font-size:13px;color:#000;">Classic Clog Negro</div>
+            <div style="font-size:11px;color:#888;margin-top:2px;">M7/W9 · M8/W10 · M9/W11</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button style="width:32px;height:32px;background:#000;color:#fff;border:none;font-size:18px;cursor:pointer;border-radius:0;">−</button>
+            <span style="font-size:15px;font-weight:600;min-width:24px;text-align:center;">23</span>
+            <button style="width:32px;height:32px;background:#000;color:#fff;border:none;font-size:18px;cursor:pointer;border-radius:0;">+</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;">
+          <div style="width:48px;height:48px;background:#e0e0e0;border-radius:6px;flex-shrink:0;"></div>
+          <div style="flex:1;">
+            <div style="font-weight:600;font-size:13px;color:#000;">Literide Blanco</div>
+            <div style="font-size:11px;color:#888;margin-top:2px;">M6/W8 · M7/W9</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button style="width:32px;height:32px;background:#000;color:#fff;border:none;font-size:18px;cursor:pointer;border-radius:0;">−</button>
+            <span style="font-size:15px;font-weight:600;min-width:24px;text-align:center;">0</span>
+            <button style="width:32px;height:32px;background:#000;color:#fff;border:none;font-size:18px;cursor:pointer;border-radius:0;">+</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:#888;">
+        ✓ Rapidísimo, sin navegación extra<br>
+        ✗ Ajusta el total, no por talla individual
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Controles por talla en el detalle</h3>
+      <p>El stock se edita talla por talla con − y + grandes, directo en la pantalla de edición.</p>
+      <div style="margin-top:12px;background:#f5f5f5;border-radius:8px;padding:12px;">
+        <div style="font-size:11px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Stock por talla</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #e8e8e8;">
+          <span style="font-size:14px;color:#000;">M6/W8</span>
+          <div style="display:flex;align-items:center;gap:0;">
+            <button style="width:40px;height:40px;background:#f0f0f0;border:1px solid #e0e0e0;font-size:20px;cursor:pointer;">−</button>
+            <span style="width:48px;text-align:center;font-size:17px;font-weight:600;border-top:1px solid #e0e0e0;border-bottom:1px solid #e0e0e0;height:40px;line-height:40px;">12</span>
+            <button style="width:40px;height:40px;background:#000;color:#fff;border:none;font-size:20px;cursor:pointer;">+</button>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #e8e8e8;">
+          <span style="font-size:14px;color:#000;">M7/W9</span>
+          <div style="display:flex;align-items:center;gap:0;">
+            <button style="width:40px;height:40px;background:#f0f0f0;border:1px solid #e0e0e0;font-size:20px;cursor:pointer;">−</button>
+            <span style="width:48px;text-align:center;font-size:17px;font-weight:600;border-top:1px solid #e0e0e0;border-bottom:1px solid #e0e0e0;height:40px;line-height:40px;">8</span>
+            <button style="width:40px;height:40px;background:#000;color:#fff;border:none;font-size:20px;cursor:pointer;">+</button>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;">
+          <span style="font-size:14px;color:#000;">M8/W10</span>
+          <div style="display:flex;align-items:center;gap:0;">
+            <button style="width:40px;height:40px;background:#f0f0f0;border:1px solid #e0e0e0;font-size:20px;cursor:pointer;">−</button>
+            <span style="width:48px;text-align:center;font-size:17px;font-weight:600;color:#ccc;border-top:1px solid #e0e0e0;border-bottom:1px solid #e0e0e0;height:40px;line-height:40px;">0</span>
+            <button style="width:40px;height:40px;background:#000;color:#fff;border:none;font-size:20px;cursor:pointer;">+</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:#888;">
+        ✓ Control preciso por talla<br>
+        ✗ Requiere entrar al producto
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Ambos combinados</h3>
+      <p>Lista muestra stock total con +/−. Dentro del detalle, controles por talla.</p>
+      <div style="margin-top:12px;background:#f5f5f5;border-radius:8px;padding:10px;font-size:12px;color:#555;line-height:1.8;">
+        <div>📋 <strong>Lista</strong> → +/− ajusta el stock de la talla más surtida (o muestra el total)</div>
+        <div>✏️ <strong>Detalle</strong> → +/− por talla con guardado automático</div>
+        <div style="margin-top:6px;padding-top:6px;border-top:1px solid #e0e0e0;">
+          Flujo: ves que algo bajó en la lista → tocas +/− sin entrar. Para ajuste fino, entras al detalle.
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:#888;">
+        ✓ Máxima flexibilidad<br>
+        ✗ Más complejo de implementar
+      </div>
+    </div>
+  </div>
+</div>
