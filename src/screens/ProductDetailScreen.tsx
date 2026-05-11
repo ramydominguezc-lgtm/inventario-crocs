@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   ScrollView,
-  TouchableOpacity,
   Pressable,
   StyleSheet,
   SafeAreaView,
@@ -18,6 +17,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { supabase } from '../lib/supabase';
 import { pickAndUploadImage } from '../lib/imageUpload';
 import { Product, ProductVariant, RootStackParamList } from '../types';
+import StockControl from '../components/StockControl';
+import SizePicker, { TallaConStock } from '../components/SizePicker';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
 
@@ -28,6 +29,8 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
   const [guardando, setGuardando] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [subiendoImagen, setSubiendoImagen] = useState(false);
+  const [guardandoTallas, setGuardandoTallas] = useState(false);
+  const [tallasPendientes, setTallasPendientes] = useState<TallaConStock[]>([]);
 
   const [nombre, setNombre] = useState('');
   const [descripcion, setDescripcion] = useState('');
@@ -38,9 +41,7 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
   const [isActive, setIsActive] = useState(true);
   const [imagenUrl, setImagenUrl] = useState('');
 
-  useEffect(() => {
-    cargarProducto();
-  }, [productId]);
+  useEffect(() => { cargarProducto(); }, [productId]);
 
   async function cargarProducto() {
     setCargando(true);
@@ -74,9 +75,10 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
         <Pressable
           onPress={() => confirmarEliminar(data.id)}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          style={({ pressed }) => [{ opacity: pressed ? 0.4 : 1 }, { paddingLeft: 8 },
+          style={({ pressed }) => [
+            { opacity: pressed ? 0.4 : 1, paddingLeft: 8 },
             // @ts-ignore
-            Platform.OS === 'web' ? { cursor: 'pointer' } : {}
+            Platform.OS === 'web' ? { cursor: 'pointer' } : {},
           ]}
         >
           <Text style={{ fontSize: 14, color: '#AAAAAA' }}>Eliminar</Text>
@@ -86,51 +88,25 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
   }
 
   function confirmarEliminar(id: string) {
-    Alert.alert(
-      'Eliminar producto',
-      '¿Estás seguro? Esta acción no se puede deshacer.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: () => eliminarProducto(id),
-        },
-      ]
-    );
+    Alert.alert('Eliminar producto', '¿Estás seguro? No se puede deshacer.', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Eliminar', style: 'destructive', onPress: () => eliminarProducto(id) },
+    ]);
   }
 
   async function eliminarProducto(id: string) {
     await supabase.from('product_variants').delete().eq('product_id', id);
     const { error } = await supabase.from('products').delete().eq('id', id);
-    if (error) {
-      Alert.alert('Error', 'No se pudo eliminar el producto.');
-    } else {
-      navigation.goBack();
-    }
+    if (error) Alert.alert('Error', 'No se pudo eliminar el producto.');
+    else navigation.goBack();
   }
 
   async function cambiarImagen() {
     setSubiendoImagen(true);
     const url = await pickAndUploadImage(`products/${productId}`);
     setSubiendoImagen(false);
-    if (url) {
-      setImagenUrl(url);
-    } else {
-      Alert.alert('Error', 'No se pudo subir la imagen. Verifica tu conexión.');
-    }
-  }
-
-  async function actualizarStock(varianteId: string, nuevoStock: string) {
-    const stock = parseInt(nuevoStock, 10);
-    if (isNaN(stock) || stock < 0) return;
-
-    setVariantes((prev) => prev.map((v) => (v.id === varianteId ? { ...v, stock } : v)));
-
-    await supabase
-      .from('product_variants')
-      .update({ stock, stock_updated_at: new Date().toISOString() })
-      .eq('id', varianteId);
+    if (url) setImagenUrl(url);
+    else Alert.alert('Error', 'No se pudo subir la imagen.');
   }
 
   async function guardar() {
@@ -138,9 +114,7 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
       Alert.alert('Campo requerido', 'El nombre no puede estar vacío.');
       return;
     }
-
     setGuardando(true);
-
     const { error } = await supabase
       .from('products')
       .update({
@@ -157,13 +131,31 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
       .eq('id', productId);
 
     setGuardando(false);
+    if (error) Alert.alert('Error', 'No se pudo guardar. Intenta de nuevo.');
+    else Alert.alert('Guardado', 'Cambios guardados.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+  }
+
+  async function agregarTallas() {
+    if (tallasPendientes.length === 0) return;
+    setGuardandoTallas(true);
+
+    const { data, error } = await supabase
+      .from('product_variants')
+      .insert(tallasPendientes.map((t) => ({
+        product_id: productId,
+        size_label: t.size_label,
+        stock: t.stock,
+      })))
+      .select();
+
+    setGuardandoTallas(false);
 
     if (error) {
-      Alert.alert('Error', 'No se pudo guardar. Intenta de nuevo.');
+      Alert.alert('Error', 'No se pudieron agregar las tallas.');
     } else {
-      Alert.alert('Guardado', 'Cambios guardados correctamente.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
+      setVariantes((prev) => [...prev, ...(data ?? [])]);
+      setTallasPendientes([]);
+      Alert.alert('Listo', `${tallasPendientes.length} talla${tallasPendientes.length !== 1 ? 's' : ''} agregada${tallasPendientes.length !== 1 ? 's' : ''}.`);
     }
   }
 
@@ -180,12 +172,15 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
     .filter((v) => v.is_active)
     .sort((a, b) => a.size_label.localeCompare(b.size_label));
 
+  const esCrocs = producto?.category === 'crocs';
+  const tallasExistentes = variantes.map((v) => v.size_label);
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
         {/* Imagen */}
-        <TouchableOpacity
+        <Pressable
           style={styles.imagenContainer}
           onPress={cambiarImagen}
           disabled={subiendoImagen}
@@ -205,25 +200,21 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
             </View>
           )}
           <View style={styles.imagenBoton}>
-            <Text style={styles.imagenBotonTexto}>
-              {subiendoImagen ? 'Subiendo...' : 'Cambiar imagen'}
-            </Text>
+            <Text style={styles.imagenBotonTexto}>{subiendoImagen ? 'Subiendo...' : 'Cambiar imagen'}</Text>
           </View>
-        </TouchableOpacity>
+        </Pressable>
 
-        {/* Nombre y descripción */}
+        {/* Campos principales */}
         <View style={styles.grupo}>
-          <Campo label="Nombre *" >
+          <Campo label="Nombre *">
             <TextInput
               style={styles.input}
               value={nombre}
               onChangeText={setNombre}
               placeholder="Nombre del producto"
               placeholderTextColor="#CCCCCC"
-              returnKeyType="next"
             />
           </Campo>
-
           <Campo label="Descripción">
             <TextInput
               style={[styles.input, styles.inputMultilinea]}
@@ -237,30 +228,15 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
           </Campo>
         </View>
 
-        {/* Precios */}
         <View style={styles.grupoFila}>
           <View style={{ flex: 1 }}>
             <Campo label="Precio MXN">
-              <TextInput
-                style={styles.input}
-                value={precio}
-                onChangeText={setPrecio}
-                keyboardType="decimal-pad"
-                placeholder="0.00"
-                placeholderTextColor="#CCCCCC"
-              />
+              <TextInput style={styles.input} value={precio} onChangeText={setPrecio} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor="#CCCCCC" />
             </Campo>
           </View>
           <View style={{ flex: 1 }}>
             <Campo label="Precio anterior">
-              <TextInput
-                style={styles.input}
-                value={precioAntes}
-                onChangeText={setPrecioAntes}
-                keyboardType="decimal-pad"
-                placeholder="0.00"
-                placeholderTextColor="#CCCCCC"
-              />
+              <TextInput style={styles.input} value={precioAntes} onChangeText={setPrecioAntes} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor="#CCCCCC" />
             </Campo>
           </View>
         </View>
@@ -275,47 +251,68 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
           <ToggleFila label="Marcar como popular" value={isHot} onToggle={setIsHot} />
         </View>
 
-        {/* Stock por talla */}
+        {/* Stock por talla existente — con StockControl */}
         {variantesActivas.length > 0 && (
           <>
             <View style={styles.seccionTitulo}>
               <Text style={styles.seccionLabel}>Stock por talla</Text>
-              <Text style={styles.seccionHint}>Edita directamente el número</Text>
+              <Text style={styles.seccionHint}>Se guarda automáticamente</Text>
             </View>
             <View style={styles.variantesGrupo}>
               {variantesActivas.map((v) => (
                 <View key={v.id} style={styles.varianteFila}>
                   <Text style={styles.varianteTalla}>{v.size_label}</Text>
-                  <View style={styles.varianteStockContainer}>
-                    <TextInput
-                      style={[styles.varianteInput, v.stock === 0 && styles.varianteInputVacio]}
-                      value={v.stock.toString()}
-                      onChangeText={(val) => actualizarStock(v.id, val)}
-                      keyboardType="number-pad"
-                      selectTextOnFocus
-                      accessibilityLabel={`Stock para talla ${v.size_label}`}
-                    />
-                    <Text style={styles.variantePzs}>pzs</Text>
-                  </View>
+                  <StockControl
+                    varianteId={v.id}
+                    stockInicial={v.stock}
+                    onCambio={(nuevo) =>
+                      setVariantes((prev) => prev.map((p) => p.id === v.id ? { ...p, stock: nuevo } : p))
+                    }
+                  />
                 </View>
               ))}
             </View>
           </>
         )}
 
-        {/* Guardar */}
-        <TouchableOpacity
-          style={[styles.botonGuardar, (guardando || subiendoImagen) && styles.botonDesactivado]}
+        {/* Agregar tallas faltantes (solo Crocs o si no tiene ninguna) */}
+        {(esCrocs || variantesActivas.length === 0) && (
+          <>
+            <View style={styles.seccionTitulo}>
+              <Text style={styles.seccionLabel}>
+                {variantesActivas.length === 0 ? 'Agregar tallas' : 'Agregar tallas faltantes'}
+              </Text>
+            </View>
+            <View style={styles.sizePickerWrapper}>
+              <SizePicker
+                tallasExistentes={tallasExistentes}
+                onChange={setTallasPendientes}
+              />
+            </View>
+
+            {tallasPendientes.length > 0 && (
+              <Pressable
+                style={({ pressed }) => [styles.botonAgregarTallas, pressed && { opacity: 0.7 }, guardandoTallas && { opacity: 0.4 }]}
+                onPress={agregarTallas}
+                disabled={guardandoTallas}
+              >
+                {guardandoTallas
+                  ? <ActivityIndicator color="#FFFFFF" />
+                  : <Text style={styles.botonTexto}>Agregar {tallasPendientes.length} talla{tallasPendientes.length !== 1 ? 's' : ''}</Text>
+                }
+              </Pressable>
+            )}
+          </>
+        )}
+
+        {/* Guardar info general */}
+        <Pressable
+          style={({ pressed }) => [styles.botonGuardar, (guardando || subiendoImagen) && styles.botonDesactivado, pressed && { opacity: 0.8 }]}
           onPress={guardar}
           disabled={guardando || subiendoImagen}
-          accessibilityLabel="Guardar cambios"
         >
-          {guardando ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.botonTexto}>Guardar cambios</Text>
-          )}
-        </TouchableOpacity>
+          {guardando ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.botonTexto}>Guardar cambios</Text>}
+        </Pressable>
 
       </ScrollView>
     </SafeAreaView>
@@ -324,7 +321,7 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
 
 function Campo({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <View style={styles.campo}>
+    <View>
       <Text style={styles.campoLabel}>{label}</Text>
       {children}
     </View>
@@ -335,12 +332,7 @@ function ToggleFila({ label, value, onToggle }: { label: string; value: boolean;
   return (
     <View style={styles.toggleFila}>
       <Text style={styles.toggleLabel}>{label}</Text>
-      <Switch
-        value={value}
-        onValueChange={onToggle}
-        trackColor={{ false: '#E0E0E0', true: '#000000' }}
-        thumbColor="#FFFFFF"
-      />
+      <Switch value={value} onValueChange={onToggle} trackColor={{ false: '#E0E0E0', true: '#000000' }} thumbColor="#FFFFFF" />
     </View>
   );
 }
@@ -351,81 +343,37 @@ const styles = StyleSheet.create({
   cargandoTexto: { fontSize: 14, color: '#AAAAAA' },
   scroll: { paddingBottom: 48 },
 
-  // Imagen
   imagenContainer: { position: 'relative' },
   imagen: { width: '100%', height: 280 },
   imagenVacia: { width: '100%', height: 280, backgroundColor: '#F5F5F5', justifyContent: 'center', alignItems: 'center' },
   imagenVaciaTexto: { color: '#CCCCCC', fontSize: 14 },
-  imagenOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-  },
+  imagenOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', gap: 8 },
   subiendoTexto: { color: '#FFFFFF', fontSize: 13 },
-  imagenBoton: {
-    position: 'absolute', bottom: 12, right: 12,
-    backgroundColor: '#000000', paddingHorizontal: 12, paddingVertical: 7,
-  },
+  imagenBoton: { position: 'absolute', bottom: 12, right: 12, backgroundColor: '#000000', paddingHorizontal: 12, paddingVertical: 7 },
   imagenBotonTexto: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
 
-  // Grupos de campos
   grupo: { paddingHorizontal: 20, paddingTop: 24, gap: 16 },
   grupoFila: { flexDirection: 'row', paddingHorizontal: 20, paddingTop: 16, gap: 12 },
-  campo: {},
-  campoLabel: {
-    fontSize: 11, fontWeight: '600', color: '#999999',
-    textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1, borderColor: '#E8E8E8',
-    paddingHorizontal: 12, paddingVertical: 12,
-    fontSize: 15, fontWeight: '400', color: '#000000',
-    minHeight: 44,
-  },
+  campoLabel: { fontSize: 11, fontWeight: '600', color: '#999999', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
+  input: { borderWidth: 1, borderColor: '#E8E8E8', paddingHorizontal: 12, paddingVertical: 12, fontSize: 15, color: '#000000', minHeight: 44 },
   inputMultilinea: { height: 88, textAlignVertical: 'top' },
 
-  // Sección headers
-  seccionTitulo: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline',
-    paddingHorizontal: 20, paddingTop: 28, paddingBottom: 4,
-  },
+  seccionTitulo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingHorizontal: 20, paddingTop: 28, paddingBottom: 4 },
   seccionLabel: { fontSize: 11, fontWeight: '600', color: '#999999', textTransform: 'uppercase', letterSpacing: 0.6 },
   seccionHint: { fontSize: 11, color: '#CCCCCC' },
 
-  // Toggles
   togglesGrupo: { borderTopWidth: 1, borderTopColor: '#F0F0F0' },
-  toggleFila: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingVertical: 14,
-    borderBottomWidth: 1, borderBottomColor: '#F0F0F0', minHeight: 52,
-  },
-  toggleLabel: { fontSize: 15, fontWeight: '400', color: '#000000', flex: 1, marginRight: 16 },
+  toggleFila: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', minHeight: 52 },
+  toggleLabel: { fontSize: 15, color: '#000000', flex: 1, marginRight: 16 },
 
-  // Variantes
   variantesGrupo: { borderTopWidth: 1, borderTopColor: '#F0F0F0' },
-  varianteFila: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: '#F0F0F0', minHeight: 52,
-  },
-  varianteTalla: { fontSize: 15, fontWeight: '400', color: '#000000' },
-  varianteStockContainer: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  varianteInput: {
-    borderWidth: 1, borderColor: '#E8E8E8',
-    width: 72, paddingVertical: 8, paddingHorizontal: 8,
-    textAlign: 'center', fontSize: 16, fontWeight: '600', color: '#000000',
-    minHeight: 44,
-  },
-  varianteInputVacio: { borderColor: '#F0F0F0', color: '#CCCCCC' },
-  variantePzs: { fontSize: 12, color: '#AAAAAA' },
+  varianteFila: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', minHeight: 60 },
+  varianteTalla: { fontSize: 15, color: '#000000' },
 
-  // Botón
-  botonGuardar: {
-    marginHorizontal: 20, marginTop: 32,
-    backgroundColor: '#000000', paddingVertical: 16, alignItems: 'center', minHeight: 52,
-  },
+  sizePickerWrapper: { paddingHorizontal: 20, paddingTop: 12 },
+
+  botonAgregarTallas: { marginHorizontal: 20, marginTop: 16, backgroundColor: '#000000', paddingVertical: 14, alignItems: 'center', minHeight: 52 },
+  botonGuardar: { marginHorizontal: 20, marginTop: 24, backgroundColor: '#000000', paddingVertical: 16, alignItems: 'center', minHeight: 52 },
   botonDesactivado: { opacity: 0.4 },
   botonTexto: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
 });

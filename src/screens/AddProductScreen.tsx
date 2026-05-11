@@ -11,11 +11,14 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
+  Pressable,
+  Platform,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { supabase } from '../lib/supabase';
 import { pickAndUploadImage } from '../lib/imageUpload';
 import { RootStackParamList } from '../types';
+import SizePicker, { TallaConStock } from '../components/SizePicker';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddProduct'>;
 
@@ -42,9 +45,13 @@ export default function AddProductScreen({ navigation, route }: Props) {
   const [guardando, setGuardando] = useState(false);
   const [subiendoImagen, setSubiendoImagen] = useState(false);
 
+  // Para crocs: se usa SizePicker. Para otros: input manual.
+  const [tallasCrocs, setTallasCrocs] = useState<TallaConStock[]>([]);
   const [nuevaTalla, setNuevaTalla] = useState('');
   const [nuevoStock, setNuevoStock] = useState('0');
   const [variantes, setVariantes] = useState<{ size_label: string; stock: number }[]>([]);
+
+  const esCrocs = category === 'crocs';
 
   async function seleccionarImagen() {
     // La imagen se sube inmediatamente al elegirla para dar feedback rápido
@@ -104,9 +111,10 @@ export default function AddProductScreen({ navigation, route }: Props) {
       return;
     }
 
-    if (variantes.length > 0) {
+    const tallasAGuardar = esCrocs ? tallasCrocs : variantes;
+    if (tallasAGuardar.length > 0) {
       await supabase.from('product_variants').insert(
-        variantes.map((v) => ({
+        tallasAGuardar.map((v) => ({
           product_id: productoId,
           size_label: v.size_label,
           stock: v.stock,
@@ -217,56 +225,68 @@ export default function AddProductScreen({ navigation, route }: Props) {
         {/* Tallas */}
         <View style={styles.seccionTitulo}>
           <Text style={styles.seccionLabel}>Tallas y stock</Text>
-          {variantes.length > 0 && (
+          {!esCrocs && variantes.length > 0 && (
             <Text style={styles.seccionHint}>{variantes.length} talla{variantes.length !== 1 ? 's' : ''}</Text>
+          )}
+          {esCrocs && tallasCrocs.length > 0 && (
+            <Text style={styles.seccionHint}>{tallasCrocs.length} talla{tallasCrocs.length !== 1 ? 's' : ''}</Text>
           )}
         </View>
 
-        {variantes.length > 0 && (
-          <View style={styles.variantesGrupo}>
-            {variantes.map((v, i) => (
-              <View key={i} style={styles.varianteFila}>
-                <Text style={styles.varianteTalla}>{v.size_label}</Text>
-                <Text style={styles.varianteStock}>{v.stock} pzs</Text>
-                <TouchableOpacity
-                  onPress={() => setVariantes((prev) => prev.filter((_, idx) => idx !== i))}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Text style={styles.eliminar}>Eliminar</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
+        {esCrocs ? (
+          <View style={styles.sizePickerWrapper}>
+            <SizePicker onChange={setTallasCrocs} />
           </View>
+        ) : (
+          <>
+            {variantes.length > 0 && (
+              <View style={styles.variantesGrupo}>
+                {variantes.map((v, i) => (
+                  <View key={i} style={styles.varianteFila}>
+                    <Text style={styles.varianteTalla}>{v.size_label}</Text>
+                    <Text style={styles.varianteStock}>{v.stock} pzs</Text>
+                    <Pressable
+                      onPress={() => setVariantes((prev) => prev.filter((_, idx) => idx !== i))}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      // @ts-ignore
+                      style={Platform.OS === 'web' ? { cursor: 'pointer' } : {}}
+                    >
+                      <Text style={styles.eliminar}>Eliminar</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+            <View style={styles.agregarTallaContainer}>
+              <TextInput
+                style={[styles.input, styles.inputTalla]}
+                value={nuevaTalla}
+                onChangeText={setNuevaTalla}
+                placeholder="Talla (ej: M / XL)"
+                placeholderTextColor="#CCCCCC"
+                returnKeyType="done"
+                onSubmitEditing={agregarVariante}
+              />
+              <TextInput
+                style={[styles.input, styles.inputStock]}
+                value={nuevoStock}
+                onChangeText={setNuevoStock}
+                keyboardType="number-pad"
+                placeholder="Stock"
+                placeholderTextColor="#CCCCCC"
+                selectTextOnFocus
+              />
+              <Pressable
+                style={({ pressed }) => [styles.botonAgregarTalla, !nuevaTalla.trim() && styles.botonDesactivado, pressed && { opacity: 0.7 }]}
+                onPress={agregarVariante}
+                disabled={!nuevaTalla.trim()}
+                accessibilityLabel="Agregar talla"
+              >
+                <Text style={styles.botonAgregarTallaTexto}>+</Text>
+              </Pressable>
+            </View>
+          </>
         )}
-
-        <View style={styles.agregarTallaContainer}>
-          <TextInput
-            style={[styles.input, styles.inputTalla]}
-            value={nuevaTalla}
-            onChangeText={setNuevaTalla}
-            placeholder="Talla  (ej: M7/W9)"
-            placeholderTextColor="#CCCCCC"
-            returnKeyType="done"
-            onSubmitEditing={agregarVariante}
-          />
-          <TextInput
-            style={[styles.input, styles.inputStock]}
-            value={nuevoStock}
-            onChangeText={setNuevoStock}
-            keyboardType="number-pad"
-            placeholder="Stock"
-            placeholderTextColor="#CCCCCC"
-            selectTextOnFocus
-          />
-          <TouchableOpacity
-            style={[styles.botonAgregarTalla, !nuevaTalla.trim() && styles.botonDesactivado]}
-            onPress={agregarVariante}
-            disabled={!nuevaTalla.trim()}
-            accessibilityLabel="Agregar talla"
-          >
-            <Text style={styles.botonAgregarTallaTexto}>+</Text>
-          </TouchableOpacity>
-        </View>
 
         {/* Guardar */}
         <TouchableOpacity
@@ -383,6 +403,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   botonAgregarTallaTexto: { color: '#FFFFFF', fontSize: 24, lineHeight: 28 },
+
+  sizePickerWrapper: { paddingHorizontal: 20, paddingTop: 12 },
 
   botonGuardar: {
     marginHorizontal: 20, marginTop: 32,
