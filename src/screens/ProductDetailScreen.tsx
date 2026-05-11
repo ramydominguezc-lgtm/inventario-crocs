@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, TextInput, ScrollView, Pressable, StyleSheet,
   SafeAreaView, Image, Alert, ActivityIndicator, Switch, Platform,
@@ -9,6 +9,7 @@ import { pickAndUploadImage } from '../lib/imageUpload';
 import { Product, ProductVariant, RootStackParamList } from '../types';
 import StockControl from '../components/StockControl';
 import SizePicker, { TallaConStock } from '../components/SizePicker';
+import Toast, { useToast } from '../components/Toast';
 import { useColors, Colors } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
@@ -16,6 +17,9 @@ type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
 export default function ProductDetailScreen({ navigation, route }: Props) {
   const { productId } = route.params;
   const C = useColors();
+  const s = useMemo(() => getStyles(C), [C]);
+  const toast = useToast();
+
   const [producto, setProducto] = useState<Product | null>(null);
   const [variantes, setVariantes] = useState<ProductVariant[]>([]);
   const [guardando, setGuardando] = useState(false);
@@ -27,11 +31,11 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
   const [nombre, setNombre] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [precio, setPrecio] = useState('');
-  const [precioAntes, setPrecioAntes] = useState('');
   const [isNew, setIsNew] = useState(false);
   const [isHot, setIsHot] = useState(false);
   const [isActive, setIsActive] = useState(true);
   const [imagenUrl, setImagenUrl] = useState('');
+  const [piezasCount, setPiezasCount] = useState('');
 
   useEffect(() => { cargarProducto(); }, [productId]);
 
@@ -51,12 +55,12 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
     setNombre(data.name);
     setDescripcion(data.description ?? '');
     setPrecio(data.price_mxn?.toString() ?? '');
-    setPrecioAntes(data.compare_at_price_mxn?.toString() ?? '');
     setIsNew(data.is_new);
     setIsHot(data.is_hot);
     setIsActive(data.is_active);
     setImagenUrl(data.primary_image_url);
     setVariantes(data.product_variants ?? []);
+    setPiezasCount(data.pieces_count?.toString() ?? '');
     setCargando(false);
     navigation.setOptions({ title: data.name });
   }
@@ -90,15 +94,19 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
       name: nombre.trim(),
       description: descripcion.trim() || null,
       price_mxn: precio ? parseFloat(precio) : null,
-      compare_at_price_mxn: precioAntes ? parseFloat(precioAntes) : null,
       is_new: isNew, is_hot: isHot, is_active: isActive,
       primary_image_url: imagenUrl,
+      pieces_count: piezasCount ? parseInt(piezasCount, 10) : null,
       updated_at: new Date().toISOString(),
     }).eq('id', productId);
 
     setGuardando(false);
-    if (error) Alert.alert('Error', 'No se pudo guardar. Intenta de nuevo.');
-    else Alert.alert('Guardado', 'Cambios guardados.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+    if (error) {
+      toast.mostrar('Error al guardar', 'error');
+    } else {
+      toast.mostrar('✓ Guardado', 'exito');
+      setTimeout(() => navigation.goBack(), 1200);
+    }
   }
 
   async function agregarTallas() {
@@ -110,28 +118,30 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
       .select();
     setGuardandoTallas(false);
     if (error) {
-      Alert.alert('Error', 'No se pudieron agregar las tallas.');
+      toast.mostrar('Error al agregar tallas', 'error');
     } else {
       setVariantes(prev => [...prev, ...(data ?? [])]);
       setTallasPendientes([]);
-      Alert.alert('Listo', `${tallasPendientes.length} talla${tallasPendientes.length !== 1 ? 's' : ''} agregada${tallasPendientes.length !== 1 ? 's' : ''}.`);
+      toast.mostrar(`✓ ${tallasPendientes.length} talla${tallasPendientes.length !== 1 ? 's' : ''} agregada${tallasPendientes.length !== 1 ? 's' : ''}`, 'exito');
     }
   }
-
-  const s = getStyles(C);
 
   if (cargando) {
     return (
       <SafeAreaView style={s.centrado}>
         <ActivityIndicator size="large" color={C.accent} />
-        <Text style={s.cargandoTexto}>Cargando producto...</Text>
       </SafeAreaView>
     );
   }
 
+  const categoria = producto?.category;
+  const esCharms = categoria === 'charms';
+  const esCrocs = categoria === 'crocs';
   const variantesActivas = variantes.filter(v => v.is_active).sort((a, b) => a.size_label.localeCompare(b.size_label));
-  const esCrocs = producto?.category === 'crocs';
   const tallasExistentes = variantes.map(v => v.size_label);
+
+  // Para charms: stock se guarda en variant con size_label='unidad'
+  const varianteUnidad = variantesActivas.find(v => v.size_label === 'unidad');
 
   return (
     <SafeAreaView style={s.safe}>
@@ -154,7 +164,7 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
           </View>
         </Pressable>
 
-        {/* Campos */}
+        {/* Campos básicos */}
         <View style={s.grupo}>
           <Campo label="Nombre *" C={C}>
             <TextInput style={s.input} value={nombre} onChangeText={setNombre}
@@ -173,26 +183,26 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
                 keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={C.textPlaceholder} />
             </Campo>
           </View>
-          <View style={{ flex: 1 }}>
-            <Campo label="Precio anterior" C={C}>
-              <TextInput style={s.input} value={precioAntes} onChangeText={setPrecioAntes}
-                keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={C.textPlaceholder} />
-            </Campo>
-          </View>
+          {esCharms && (
+            <View style={{ flex: 1 }}>
+              <Campo label="Piezas por colección" C={C}>
+                <TextInput style={s.input} value={piezasCount} onChangeText={setPiezasCount}
+                  keyboardType="number-pad" placeholder="0" placeholderTextColor={C.textPlaceholder} />
+              </Campo>
+            </View>
+          )}
         </View>
 
         {/* Toggles */}
-        <View style={s.seccionTitulo}>
-          <Text style={s.seccionLabel}>Visibilidad</Text>
-        </View>
+        <View style={s.seccionTitulo}><Text style={s.seccionLabel}>Visibilidad</Text></View>
         <View style={s.togglesGrupo}>
           <ToggleFila label="Activo / visible en tienda" value={isActive} onToggle={setIsActive} C={C} />
           <ToggleFila label="Marcar como nuevo" value={isNew} onToggle={setIsNew} C={C} />
           <ToggleFila label="Marcar como popular" value={isHot} onToggle={setIsHot} C={C} />
         </View>
 
-        {/* Stock por talla */}
-        {variantesActivas.length > 0 && (
+        {/* === CROCS: stock por talla === */}
+        {esCrocs && variantesActivas.length > 0 && (
           <>
             <View style={s.seccionTitulo}>
               <Text style={s.seccionLabel}>Stock por talla</Text>
@@ -209,25 +219,19 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
               {variantesActivas.map(v => (
                 <View key={v.id} style={s.varianteFila}>
                   <Text style={s.varianteTalla}>{v.size_label}</Text>
-                  <StockControl
-                    varianteId={v.id}
-                    productId={productId}
-                    stockInicial={v.stock}
-                    onCambio={nuevo => setVariantes(prev => prev.map(p => p.id === v.id ? { ...p, stock: nuevo } : p))}
-                  />
+                  <StockControl varianteId={v.id} productId={productId} stockInicial={v.stock}
+                    onCambio={nuevo => setVariantes(prev => prev.map(p => p.id === v.id ? { ...p, stock: nuevo } : p))} />
                 </View>
               ))}
             </View>
           </>
         )}
 
-        {/* Agregar tallas faltantes */}
-        {(esCrocs || variantesActivas.length === 0) && (
+        {/* === CROCS: agregar tallas faltantes === */}
+        {esCrocs && (
           <>
             <View style={s.seccionTitulo}>
-              <Text style={s.seccionLabel}>
-                {variantesActivas.length === 0 ? 'Agregar tallas' : 'Agregar tallas faltantes'}
-              </Text>
+              <Text style={s.seccionLabel}>{variantesActivas.length === 0 ? 'Agregar tallas' : 'Agregar tallas faltantes'}</Text>
             </View>
             <View style={s.sizePickerWrapper}>
               <SizePicker tallasExistentes={tallasExistentes} onChange={setTallasPendientes} />
@@ -237,12 +241,80 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
                 style={({ pressed }) => [s.botonAgregarTallas, pressed && { opacity: 0.7 }, guardandoTallas && { opacity: 0.4 }]}
                 onPress={agregarTallas} disabled={guardandoTallas}
               >
-                {guardandoTallas
-                  ? <ActivityIndicator color={C.accentFg} />
-                  : <Text style={s.botonTexto}>Agregar {tallasPendientes.length} talla{tallasPendientes.length !== 1 ? 's' : ''}</Text>
-                }
+                {guardandoTallas ? <ActivityIndicator color={C.accentFg} />
+                  : <Text style={s.botonTexto}>Agregar {tallasPendientes.length} talla{tallasPendientes.length !== 1 ? 's' : ''}</Text>}
               </Pressable>
             )}
+          </>
+        )}
+
+        {/* === CHARMS: piezas únicas y stock de la colección === */}
+        {esCharms && (
+          <>
+            <View style={s.seccionTitulo}>
+              <Text style={s.seccionLabel}>Stock de la colección</Text>
+              <Pressable
+                onPress={() => navigation.navigate('StockHistory', { productId, productName: nombre })}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                // @ts-ignore
+                style={Platform.OS === 'web' ? { cursor: 'pointer' } : {}}
+              >
+                <Text style={s.seccionLink}>Ver historial →</Text>
+              </Pressable>
+            </View>
+            {varianteUnidad ? (
+              <View style={s.stockSimpleRow}>
+                <Text style={s.stockSimpleLabel}>Unidades disponibles</Text>
+                <StockControl
+                  varianteId={varianteUnidad.id}
+                  productId={productId}
+                  stockInicial={varianteUnidad.stock}
+                  onCambio={nuevo => setVariantes(prev => prev.map(p => p.id === varianteUnidad.id ? { ...p, stock: nuevo } : p))}
+                />
+              </View>
+            ) : (
+              <View style={s.stockSimpleRow}>
+                <Text style={s.stockSimpleLabel}>Sin stock registrado</Text>
+                <Pressable style={s.botonAgregarStock} onPress={async () => {
+                  const { data } = await supabase.from('product_variants')
+                    .insert({ product_id: productId, size_label: 'unidad', stock: 0 }).select().single();
+                  if (data) setVariantes(prev => [...prev, data]);
+                }}>
+                  <Text style={s.botonAgregarStockTexto}>+ Agregar stock</Text>
+                </Pressable>
+              </View>
+            )}
+          </>
+        )}
+
+        {/* === OTROS: variantes libres === */}
+        {categoria === 'otros' && (
+          <>
+            <View style={s.seccionTitulo}>
+              <Text style={s.seccionLabel}>Variantes / stock</Text>
+              {variantesActivas.length > 0 && (
+                <Pressable
+                  onPress={() => navigation.navigate('StockHistory', { productId, productName: nombre })}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  // @ts-ignore
+                  style={Platform.OS === 'web' ? { cursor: 'pointer' } : {}}
+                >
+                  <Text style={s.seccionLink}>Ver historial →</Text>
+                </Pressable>
+              )}
+            </View>
+            {variantesActivas.length > 0 && (
+              <View style={s.variantesGrupo}>
+                {variantesActivas.map(v => (
+                  <View key={v.id} style={s.varianteFila}>
+                    <Text style={s.varianteTalla}>{v.size_label}</Text>
+                    <StockControl varianteId={v.id} productId={productId} stockInicial={v.stock}
+                      onCambio={nuevo => setVariantes(prev => prev.map(p => p.id === v.id ? { ...p, stock: nuevo } : p))} />
+                  </View>
+                ))}
+              </View>
+            )}
+            <AgregarVarianteOtros productId={productId} onAgregada={v => setVariantes(prev => [...prev, v])} C={C} s={s} />
           </>
         )}
 
@@ -263,16 +335,48 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
         </Pressable>
 
       </ScrollView>
+
+      <Toast mensaje={toast.mensaje} tipo={toast.tipo} />
     </SafeAreaView>
+  );
+}
+
+function AgregarVarianteOtros({ productId, onAgregada, C, s }: { productId: string; onAgregada: (v: any) => void; C: Colors; s: any }) {
+  const [label, setLabel] = useState('');
+  const [stock, setStock] = useState('0');
+  const [guardando, setGuardando] = useState(false);
+
+  async function agregar() {
+    if (!label.trim()) return;
+    setGuardando(true);
+    const { data } = await supabase.from('product_variants')
+      .insert({ product_id: productId, size_label: label.trim(), stock: parseInt(stock, 10) || 0 })
+      .select().single();
+    setGuardando(false);
+    if (data) { onAgregada(data); setLabel(''); setStock('0'); }
+  }
+
+  return (
+    <View style={s.agregarTallaContainer}>
+      <TextInput style={[s.input, s.inputTalla]} value={label} onChangeText={setLabel}
+        placeholder="Color, talla, tipo..." placeholderTextColor={C.textPlaceholder}
+        returnKeyType="done" onSubmitEditing={agregar} />
+      <TextInput style={[s.input, s.inputStock]} value={stock} onChangeText={setStock}
+        keyboardType="number-pad" placeholder="0" placeholderTextColor={C.textPlaceholder} selectTextOnFocus />
+      <Pressable
+        style={({ pressed }) => [s.botonAgregarTalla, !label.trim() && s.botonDesactivado, pressed && { opacity: 0.7 }]}
+        onPress={agregar} disabled={!label.trim() || guardando}
+      >
+        {guardando ? <ActivityIndicator color={C.accentFg} size="small" /> : <Text style={s.botonAgregarTallaTexto}>+</Text>}
+      </Pressable>
+    </View>
   );
 }
 
 function Campo({ label, children, C }: { label: string; children: React.ReactNode; C: Colors }) {
   return (
     <View>
-      <Text style={{ fontSize: 11, fontWeight: '600', color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 }}>
-        {label}
-      </Text>
+      <Text style={{ fontSize: 11, fontWeight: '600', color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 }}>{label}</Text>
       {children}
     </View>
   );
@@ -291,8 +395,7 @@ function getStyles(C: Colors) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: C.bg },
     centrado: { flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center', gap: 12 },
-    cargandoTexto: { fontSize: 14, color: C.textFaint },
-    scroll: { paddingBottom: 48 },
+    scroll: { paddingBottom: 64 },
 
     imagenContainer: { position: 'relative' },
     imagen: { width: '100%', height: 280 },
@@ -310,7 +413,6 @@ function getStyles(C: Colors) {
 
     seccionTitulo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingHorizontal: 20, paddingTop: 28, paddingBottom: 4 },
     seccionLabel: { fontSize: 11, fontWeight: '600', color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
-    seccionHint: { fontSize: 11, color: C.textPlaceholder },
     seccionLink: { fontSize: 12, color: C.textMuted, fontWeight: '500' },
 
     togglesGrupo: { borderTopWidth: 1, borderTopColor: C.border },
@@ -319,7 +421,18 @@ function getStyles(C: Colors) {
     varianteFila: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border, minHeight: 60 },
     varianteTalla: { fontSize: 15, color: C.text },
 
+    stockSimpleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1, borderTopColor: C.border },
+    stockSimpleLabel: { fontSize: 15, color: C.text },
+    botonAgregarStock: { paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: C.borderInput },
+    botonAgregarStockTexto: { fontSize: 13, fontWeight: '600', color: C.textMuted },
+
     sizePickerWrapper: { paddingHorizontal: 20, paddingTop: 12 },
+
+    agregarTallaContainer: { flexDirection: 'row', paddingHorizontal: 20, paddingTop: 12, gap: 8, alignItems: 'center' },
+    inputTalla: { flex: 1 },
+    inputStock: { width: 64, textAlign: 'center' },
+    botonAgregarTalla: { backgroundColor: C.accent, width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
+    botonAgregarTallaTexto: { color: C.accentFg, fontSize: 24, lineHeight: 28 },
 
     botonAgregarTallas: { marginHorizontal: 20, marginTop: 16, backgroundColor: C.accent, paddingVertical: 14, alignItems: 'center', minHeight: 52 },
     botonGuardar: { marginHorizontal: 20, marginTop: 24, backgroundColor: C.accent, paddingVertical: 16, alignItems: 'center', minHeight: 52 },

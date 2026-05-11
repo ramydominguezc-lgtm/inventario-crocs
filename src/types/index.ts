@@ -28,7 +28,6 @@ export interface Product {
   slug: string;
   description: string | null;
   price_mxn: number | null;
-  compare_at_price_mxn: number | null;
   is_new: boolean;
   is_hot: boolean;
   is_active: boolean;
@@ -37,6 +36,7 @@ export interface Product {
   display_order: number | null;
   featured_order: number | null;
   category: ProductCategory;
+  pieces_count: number | null;
   created_at: string;
   updated_at: string;
   product_variants?: ProductVariant[];

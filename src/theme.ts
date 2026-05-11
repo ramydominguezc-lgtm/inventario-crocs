@@ -1,4 +1,4 @@
-import { useColorScheme } from 'react-native';
+import { useTheme } from './context/ThemeContext';
 
 const light = {
   bg: '#FFFFFF',
@@ -53,8 +53,8 @@ const dark: typeof light = {
 export type Colors = typeof light;
 
 export function useColors(): Colors {
-  const scheme = useColorScheme();
-  return scheme === 'dark' ? dark : light;
+  const { resolved } = useTheme();
+  return resolved === 'dark' ? dark : light;
 }
 
 export const LOW_STOCK_THRESHOLD = 5;

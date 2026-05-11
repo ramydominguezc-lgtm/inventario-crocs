@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
+import { ThemeProvider } from './src/context/ThemeContext';
 import { NavigationContainer, DefaultTheme, DarkTheme, Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './src/lib/supabase';
 import { RootStackParamList } from './src/types';
 import { useColors } from './src/theme';
+import { useTheme } from './src/context/ThemeContext';
 import AuthScreen from './src/screens/AuthScreen';
 import LandingScreen from './src/screens/LandingScreen';
 import ProductListScreen from './src/screens/ProductListScreen';
@@ -18,7 +20,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function AppNavigator() {
   const C = useColors();
-  const scheme = useColorScheme();
+  const { resolved: scheme } = useTheme();
 
   const navTheme: Theme = {
     ...(scheme === 'dark' ? DarkTheme : DefaultTheme),
@@ -77,8 +79,8 @@ export default function App() {
   }
 
   if (!session) {
-    return <WebContainer><AuthScreen /></WebContainer>;
+    return <ThemeProvider><WebContainer><AuthScreen /></WebContainer></ThemeProvider>;
   }
 
-  return <WebContainer><AppNavigator /></WebContainer>;
+  return <ThemeProvider><WebContainer><AppNavigator /></WebContainer></ThemeProvider>;
 }

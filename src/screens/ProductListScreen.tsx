@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View, Text, FlatList, StyleSheet, SafeAreaView, StatusBar,
   ActivityIndicator, Pressable, TextInput, Platform, Alert,
@@ -128,7 +128,7 @@ export default function ProductListScreen({ navigation, route }: Props) {
     return lista;
   })();
 
-  const s = getStyles(C);
+  const s = useMemo(() => getStyles(C), [C]);
 
   if (cargando) {
     return (

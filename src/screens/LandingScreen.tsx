@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View, Text, Pressable, StyleSheet, SafeAreaView,
   StatusBar, ActivityIndicator, Share, Platform, Alert,
@@ -6,8 +6,9 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
-import { RootStackParamList, ProductCategory, Product } from '../types';
+import { RootStackParamList, ProductCategory } from '../types';
 import { useColors, Colors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Landing'>;
 
@@ -26,6 +27,8 @@ type Resumen = Partial<Record<ProductCategory, ResumenCategoria>>;
 
 export default function LandingScreen({ navigation }: Props) {
   const C = useColors();
+  const s = useMemo(() => getStyles(C), [C]);
+  const { resolved, toggle } = useTheme();
   const [resumen, setResumen] = useState<Resumen>({});
   const [cargando, setCargando] = useState(true);
   const [exportando, setExportando] = useState(false);
@@ -94,16 +97,25 @@ export default function LandingScreen({ navigation }: Props) {
     }
   }
 
-  const s = getStyles(C);
-
   return (
     <SafeAreaView style={s.safe}>
       <StatusBar barStyle={C.bg === '#FFFFFF' ? 'dark-content' : 'light-content'} backgroundColor={C.bg} />
       <View style={s.container}>
 
         <View style={s.header}>
-          <Text style={s.titulo}>Inventario</Text>
-          <Text style={s.subtitulo}>Crocs Monterrey</Text>
+          <View style={s.headerTop}>
+            <View>
+              <Text style={s.titulo}>Inventario</Text>
+              <Text style={s.subtitulo}>Crocs Monterrey</Text>
+            </View>
+            <Pressable
+              onPress={toggle}
+              style={({ pressed }) => [s.temaBoton, pressed && { opacity: 0.6 }]}
+              accessibilityLabel={`Cambiar a modo ${resolved === 'dark' ? 'claro' : 'oscuro'}`}
+            >
+              <Text style={s.temaIcono}>{resolved === 'dark' ? '☀️' : '🌙'}</Text>
+            </Pressable>
+          </View>
         </View>
 
         <View style={s.lista}>
@@ -162,8 +174,11 @@ function getStyles(C: Colors) {
     safe: { flex: 1, backgroundColor: C.bg },
     container: { flex: 1, paddingHorizontal: 20 },
     header: { paddingTop: 48, paddingBottom: 40 },
+    headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
     titulo: { fontSize: 32, fontWeight: '600', color: C.text, letterSpacing: -0.5 },
     subtitulo: { fontSize: 16, color: C.textMuted, marginTop: 4 },
+    temaBoton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
+    temaIcono: { fontSize: 22 },
     lista: { borderTopWidth: 1, borderTopColor: C.border },
     fila: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

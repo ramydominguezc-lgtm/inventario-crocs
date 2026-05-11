@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View, Text, TextInput, ScrollView, StyleSheet, SafeAreaView,
   Image, Alert, ActivityIndicator, Switch, Pressable, Platform,
@@ -14,32 +14,37 @@ type Props = NativeStackScreenProps<RootStackParamList, 'AddProduct'>;
 
 function generarSlug(nombre: string): string {
   return nombre.toLowerCase().normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .substring(0, 80);
+    .replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').substring(0, 80);
 }
 
 export default function AddProductScreen({ navigation, route }: Props) {
   const { category } = route.params;
   const C = useColors();
+  const s = useMemo(() => getStyles(C), [C]);
 
   const [nombre, setNombre] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [precio, setPrecio] = useState('');
-  const [precioAntes, setPrecioAntes] = useState('');
   const [isNew, setIsNew] = useState(false);
   const [isHot, setIsHot] = useState(false);
   const [imagenUrl, setImagenUrl] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [subiendoImagen, setSubiendoImagen] = useState(false);
 
+  // Crocs
   const [tallasCrocs, setTallasCrocs] = useState<TallaConStock[]>([]);
-  const [nuevaTalla, setNuevaTalla] = useState('');
-  const [nuevoStock, setNuevoStock] = useState('0');
+
+  // Charms
+  const [piezasCount, setPiezasCount] = useState('');
+  const [stockCharms, setStockCharms] = useState('0');
+
+  // Otros
   const [variantes, setVariantes] = useState<{ size_label: string; stock: number }[]>([]);
+  const [nuevaVariante, setNuevaVariante] = useState('');
+  const [nuevoStock, setNuevoStock] = useState('0');
 
   const esCrocs = category === 'crocs';
+  const esCharms = category === 'charms';
 
   async function seleccionarImagen() {
     setSubiendoImagen(true);
@@ -50,13 +55,13 @@ export default function AddProductScreen({ navigation, route }: Props) {
   }
 
   function agregarVariante() {
-    if (!nuevaTalla.trim()) return;
-    if (variantes.find(v => v.size_label === nuevaTalla.trim())) {
-      Alert.alert('Talla duplicada', 'Ya agregaste esa talla.');
+    if (!nuevaVariante.trim()) return;
+    if (variantes.find(v => v.size_label === nuevaVariante.trim())) {
+      Alert.alert('Duplicado', 'Ya existe esa variante.');
       return;
     }
-    setVariantes(prev => [...prev, { size_label: nuevaTalla.trim(), stock: parseInt(nuevoStock, 10) || 0 }]);
-    setNuevaTalla('');
+    setVariantes(prev => [...prev, { size_label: nuevaVariante.trim(), stock: parseInt(nuevoStock, 10) || 0 }]);
+    setNuevaVariante('');
     setNuevoStock('0');
   }
 
@@ -71,30 +76,32 @@ export default function AddProductScreen({ navigation, route }: Props) {
       slug: generarSlug(nombre),
       description: descripcion.trim() || null,
       price_mxn: precio ? parseFloat(precio) : null,
-      compare_at_price_mxn: precioAntes ? parseFloat(precioAntes) : null,
       is_new: isNew, is_hot: isHot, is_active: true,
       category,
       primary_image_url: imagenUrl ?? '',
+      pieces_count: esCharms && piezasCount ? parseInt(piezasCount, 10) : null,
     });
 
     if (productoError) {
       setGuardando(false);
-      Alert.alert('Error', `No se pudo crear el producto: ${productoError.message}`);
+      Alert.alert('Error', productoError.message);
       return;
     }
 
-    const tallasAGuardar = esCrocs ? tallasCrocs : variantes;
-    if (tallasAGuardar.length > 0) {
+    let variantesAGuardar: { size_label: string; stock: number }[] = [];
+    if (esCrocs) variantesAGuardar = tallasCrocs;
+    else if (esCharms) variantesAGuardar = [{ size_label: 'unidad', stock: parseInt(stockCharms, 10) || 0 }];
+    else variantesAGuardar = variantes;
+
+    if (variantesAGuardar.length > 0) {
       await supabase.from('product_variants').insert(
-        tallasAGuardar.map(v => ({ product_id: productoId, size_label: v.size_label, stock: v.stock }))
+        variantesAGuardar.map(v => ({ product_id: productoId, size_label: v.size_label, stock: v.stock }))
       );
     }
 
     setGuardando(false);
     Alert.alert('¡Creado!', 'Producto agregado correctamente.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
   }
-
-  const s = getStyles(C);
 
   return (
     <SafeAreaView style={s.safe}>
@@ -120,7 +127,7 @@ export default function AddProductScreen({ navigation, route }: Props) {
           )}
         </Pressable>
 
-        {/* Campos */}
+        {/* Campos básicos */}
         <View style={s.grupo}>
           <Campo label="Nombre *" C={C}>
             <TextInput style={s.input} value={nombre} onChangeText={setNombre}
@@ -132,6 +139,7 @@ export default function AddProductScreen({ navigation, route }: Props) {
           </Campo>
         </View>
 
+        {/* Precio + piezas por colección (charms) */}
         <View style={s.grupoFila}>
           <View style={{ flex: 1 }}>
             <Campo label="Precio MXN" C={C}>
@@ -139,40 +147,67 @@ export default function AddProductScreen({ navigation, route }: Props) {
                 keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={C.textPlaceholder} />
             </Campo>
           </View>
-          <View style={{ flex: 1 }}>
-            <Campo label="Precio anterior" C={C}>
-              <TextInput style={s.input} value={precioAntes} onChangeText={setPrecioAntes}
-                keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={C.textPlaceholder} />
-            </Campo>
-          </View>
+          {esCharms && (
+            <View style={{ flex: 1 }}>
+              <Campo label="Piezas por colección" C={C}>
+                <TextInput style={s.input} value={piezasCount} onChangeText={setPiezasCount}
+                  keyboardType="number-pad" placeholder="0" placeholderTextColor={C.textPlaceholder} />
+              </Campo>
+            </View>
+          )}
         </View>
 
         {/* Toggles */}
-        <View style={s.seccionTitulo}>
-          <Text style={s.seccionLabel}>Etiquetas</Text>
-        </View>
+        <View style={s.seccionTitulo}><Text style={s.seccionLabel}>Etiquetas</Text></View>
         <View style={s.togglesGrupo}>
           <ToggleFila label="Marcar como nuevo" value={isNew} onToggle={setIsNew} C={C} />
           <ToggleFila label="Marcar como popular" value={isHot} onToggle={setIsHot} C={C} />
         </View>
 
-        {/* Tallas */}
-        <View style={s.seccionTitulo}>
-          <Text style={s.seccionLabel}>Tallas y stock</Text>
-          {esCrocs && tallasCrocs.length > 0 && (
-            <Text style={s.seccionHint}>{tallasCrocs.length} talla{tallasCrocs.length !== 1 ? 's' : ''}</Text>
-          )}
-          {!esCrocs && variantes.length > 0 && (
-            <Text style={s.seccionHint}>{variantes.length} talla{variantes.length !== 1 ? 's' : ''}</Text>
-          )}
-        </View>
-
-        {esCrocs ? (
-          <View style={s.sizePickerWrapper}>
-            <SizePicker onChange={setTallasCrocs} />
-          </View>
-        ) : (
+        {/* === CROCS: size picker === */}
+        {esCrocs && (
           <>
+            <View style={s.seccionTitulo}>
+              <Text style={s.seccionLabel}>Tallas y stock</Text>
+              {tallasCrocs.length > 0 && <Text style={s.seccionHint}>{tallasCrocs.length} talla{tallasCrocs.length !== 1 ? 's' : ''}</Text>}
+            </View>
+            <View style={s.sizePickerWrapper}>
+              <SizePicker onChange={setTallasCrocs} />
+            </View>
+          </>
+        )}
+
+        {/* === CHARMS: stock de la colección === */}
+        {esCharms && (
+          <>
+            <View style={s.seccionTitulo}>
+              <Text style={s.seccionLabel}>Unidades en stock</Text>
+            </View>
+            <View style={s.stockCharmRow}>
+              <Text style={s.stockCharmLabel}>¿Cuántas colecciones tienes?</Text>
+              <View style={s.grupoFila}>
+                <TextInput
+                  style={[s.input, { flex: 1 }]}
+                  value={stockCharms}
+                  onChangeText={setStockCharms}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor={C.textPlaceholder}
+                  selectTextOnFocus
+                />
+              </View>
+            </View>
+          </>
+        )}
+
+        {/* === OTROS: variantes libres === */}
+        {!esCrocs && !esCharms && (
+          <>
+            <View style={s.seccionTitulo}>
+              <Text style={s.seccionLabel}>Variantes / stock</Text>
+              {variantes.length > 0 && <Text style={s.seccionHint}>{variantes.length} variante{variantes.length !== 1 ? 's' : ''}</Text>}
+            </View>
+
             {variantes.length > 0 && (
               <View style={s.variantesGrupo}>
                 {variantes.map((v, i) => (
@@ -185,25 +220,26 @@ export default function AddProductScreen({ navigation, route }: Props) {
                       // @ts-ignore
                       style={Platform.OS === 'web' ? { cursor: 'pointer' } : {}}
                     >
-                      <Text style={s.eliminar}>Eliminar</Text>
+                      <Text style={s.eliminar}>✕</Text>
                     </Pressable>
                   </View>
                 ))}
               </View>
             )}
+
             <View style={s.agregarTallaContainer}>
               <TextInput
-                style={[s.input, s.inputTalla]} value={nuevaTalla} onChangeText={setNuevaTalla}
-                placeholder="Talla (ej: M / XL)" placeholderTextColor={C.textPlaceholder}
+                style={[s.input, s.inputTalla]} value={nuevaVariante} onChangeText={setNuevaVariante}
+                placeholder="Color, talla, tipo, modelo..." placeholderTextColor={C.textPlaceholder}
                 returnKeyType="done" onSubmitEditing={agregarVariante}
               />
               <TextInput
                 style={[s.input, s.inputStock]} value={nuevoStock} onChangeText={setNuevoStock}
-                keyboardType="number-pad" placeholder="Stock" placeholderTextColor={C.textPlaceholder} selectTextOnFocus
+                keyboardType="number-pad" placeholder="0" placeholderTextColor={C.textPlaceholder} selectTextOnFocus
               />
               <Pressable
-                style={({ pressed }) => [s.botonAgregarTalla, !nuevaTalla.trim() && s.botonDesactivado, pressed && { opacity: 0.7 }]}
-                onPress={agregarVariante} disabled={!nuevaTalla.trim()}
+                style={({ pressed }) => [s.botonAgregarTalla, !nuevaVariante.trim() && s.botonDesactivado, pressed && { opacity: 0.7 }]}
+                onPress={agregarVariante} disabled={!nuevaVariante.trim()}
               >
                 <Text style={s.botonAgregarTallaTexto}>+</Text>
               </Pressable>
@@ -227,9 +263,7 @@ export default function AddProductScreen({ navigation, route }: Props) {
 function Campo({ label, children, C }: { label: string; children: React.ReactNode; C: Colors }) {
   return (
     <View>
-      <Text style={{ fontSize: 11, fontWeight: '600', color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 }}>
-        {label}
-      </Text>
+      <Text style={{ fontSize: 11, fontWeight: '600', color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 }}>{label}</Text>
       {children}
     </View>
   );
@@ -270,19 +304,22 @@ function getStyles(C: Colors) {
 
     togglesGrupo: { borderTopWidth: 1, borderTopColor: C.border },
 
+    sizePickerWrapper: { paddingHorizontal: 20, paddingTop: 12 },
+
+    stockCharmRow: { paddingHorizontal: 20, paddingTop: 12, gap: 8 },
+    stockCharmLabel: { fontSize: 15, color: C.text },
+
     variantesGrupo: { borderTopWidth: 1, borderTopColor: C.border },
     varianteFila: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border, minHeight: 52 },
     varianteTalla: { fontSize: 15, color: C.text, flex: 1 },
-    varianteStock: { fontSize: 14, color: C.textMuted, marginRight: 20 },
-    eliminar: { fontSize: 13, color: C.textPlaceholder },
+    varianteStock: { fontSize: 14, color: C.textMuted, marginRight: 16 },
+    eliminar: { fontSize: 16, color: C.textPlaceholder },
 
     agregarTallaContainer: { flexDirection: 'row', paddingHorizontal: 20, paddingTop: 12, gap: 8, alignItems: 'center' },
     inputTalla: { flex: 1 },
-    inputStock: { width: 72, textAlign: 'center' },
+    inputStock: { width: 64, textAlign: 'center' },
     botonAgregarTalla: { backgroundColor: C.accent, width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
     botonAgregarTallaTexto: { color: C.accentFg, fontSize: 24, lineHeight: 28 },
-
-    sizePickerWrapper: { paddingHorizontal: 20, paddingTop: 12 },
 
     botonGuardar: { marginHorizontal: 20, marginTop: 32, backgroundColor: C.accent, paddingVertical: 16, alignItems: 'center', minHeight: 52 },
     botonDesactivado: { opacity: 0.4 },

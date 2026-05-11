@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Alert } from 'react-native';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useColors, Colors } from '../theme';
 
@@ -12,55 +12,71 @@ interface Props {
 
 export default function StockControl({ varianteId, productId, stockInicial, onCambio }: Props) {
   const C = useColors();
+  const s = useMemo(() => getStyles(C), [C]);
   const [stock, setStock] = useState(stockInicial);
+  const [esperandoTipo, setEsperandoTipo] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { setStock(stockInicial); }, [stockInicial]);
   useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
 
   function guardarMovimiento(delta: number, tipo: 'venta' | 'baja' | 'restock') {
-    supabase.from('stock_movements').insert({
-      variant_id: varianteId,
-      product_id: productId,
-      delta,
-      type: tipo,
-    });
+    supabase.from('stock_movements').insert({ variant_id: varianteId, product_id: productId, delta, type: tipo });
   }
 
   function aplicarCambio(nuevo: number, tipo: 'venta' | 'baja' | 'restock') {
     const delta = nuevo - stock;
     setStock(nuevo);
+    setEsperandoTipo(false);
     onCambio?.(nuevo);
     guardarMovimiento(delta, tipo);
-
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
-      await supabase
-        .from('product_variants')
+      await supabase.from('product_variants')
         .update({ stock: nuevo, stock_updated_at: new Date().toISOString() })
         .eq('id', varianteId);
     }, 600);
   }
 
   function presionarMenos() {
-    if (stock === 0) return;
-    const nuevo = stock - 1;
-    Alert.alert(
-      'Reducir stock',
-      '¿Por qué se reduce esta pieza?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Venta', onPress: () => aplicarCambio(nuevo, 'venta') },
-        { text: 'Dar de baja', style: 'destructive', onPress: () => aplicarCambio(nuevo, 'baja') },
-      ]
-    );
+    if (stock === 0 || esperandoTipo) { setEsperandoTipo(false); return; }
+    setEsperandoTipo(true);
   }
 
   function presionarMas() {
+    setEsperandoTipo(false);
     aplicarCambio(stock + 1, 'restock');
   }
 
-  const s = getStyles(C);
+  if (esperandoTipo) {
+    return (
+      <View style={s.confirmContainer}>
+        <Pressable
+          style={({ pressed }) => [s.confirmBtn, s.confirmVenta, pressed && { opacity: 0.7 }]}
+          onPress={() => aplicarCambio(stock - 1, 'venta')}
+          hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+        >
+          <Text style={s.confirmEmoji}>💰</Text>
+          <Text style={s.confirmLabel}>Venta</Text>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [s.confirmBtn, s.confirmBaja, pressed && { opacity: 0.7 }]}
+          onPress={() => aplicarCambio(stock - 1, 'baja')}
+          hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+        >
+          <Text style={s.confirmEmoji}>🗑</Text>
+          <Text style={s.confirmLabel}>Baja</Text>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [s.confirmBtn, s.confirmCancel, pressed && { opacity: 0.7 }]}
+          onPress={() => setEsperandoTipo(false)}
+          hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+        >
+          <Text style={s.confirmCancelTexto}>✕</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View style={s.container}>
@@ -73,11 +89,9 @@ export default function StockControl({ varianteId, productId, stockInicial, onCa
       >
         <Text style={[s.botonTexto, stock === 0 && s.botonTextoDesactivado]}>−</Text>
       </Pressable>
-
       <View style={[s.numero, stock === 0 && s.numeroCero]}>
         <Text style={[s.numeroTexto, stock === 0 && s.numeroTextoCero]}>{stock}</Text>
       </View>
-
       <Pressable
         style={({ pressed }) => [s.boton, s.botonMas, pressed && s.botonMasPressed]}
         onPress={presionarMas}
@@ -93,8 +107,7 @@ export default function StockControl({ varianteId, productId, stockInicial, onCa
 function getStyles(C: Colors) {
   return StyleSheet.create({
     container: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: 'row', alignItems: 'center',
       // @ts-ignore
       cursor: Platform.OS === 'web' ? 'default' : undefined,
     },
@@ -109,11 +122,22 @@ function getStyles(C: Colors) {
     botonMasTexto: { fontSize: 20, color: C.accentFg, lineHeight: 22 },
     numero: {
       width: 52, height: 40, justifyContent: 'center', alignItems: 'center',
-      borderTopWidth: 1, borderBottomWidth: 1, borderColor: C.borderInput,
-      backgroundColor: C.bg,
+      borderTopWidth: 1, borderBottomWidth: 1, borderColor: C.borderInput, backgroundColor: C.bg,
     },
     numeroCero: { backgroundColor: C.surface },
     numeroTexto: { fontSize: 17, fontWeight: '600', color: C.text },
     numeroTextoCero: { color: C.textPlaceholder },
+
+    confirmContainer: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    confirmBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, minHeight: 36,
+    },
+    confirmVenta: { backgroundColor: '#E8F8EE', borderWidth: 1, borderColor: '#34C759' },
+    confirmBaja: { backgroundColor: '#FFF0EF', borderWidth: 1, borderColor: C.danger },
+    confirmCancel: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.borderInput, paddingHorizontal: 8 },
+    confirmEmoji: { fontSize: 13 },
+    confirmLabel: { fontSize: 12, fontWeight: '600', color: C.text },
+    confirmCancelTexto: { fontSize: 13, color: C.textMuted },
   });
 }
