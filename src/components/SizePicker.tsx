@@ -4,6 +4,22 @@ import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 const TALLAS_NINOS = ['C4/5', 'C6/7', 'C8/9', 'C10/11', 'C12/13'];
 const TALLAS_ADULTOS = ['M4/W6', 'M5/W7', 'M6/W8', 'M7/W9', 'M8/W10', 'M9/W11', 'M10/W12', 'M11/W13'];
 
+const CM: Record<string, string> = {
+  'C4/5':   '12-13',
+  'C6/7':   '14-15',
+  'C8/9':   '16-17',
+  'C10/11': '18-19',
+  'C12/13': '20-21',
+  'M4/W6':  '22',
+  'M5/W7':  '23',
+  'M6/W8':  '24',
+  'M7/W9':  '25',
+  'M8/W10': '26',
+  'M9/W11': '27',
+  'M10/W12':'28',
+  'M11/W13':'29',
+};
+
 export interface TallaConStock {
   size_label: string;
   stock: number;
@@ -87,6 +103,7 @@ export default function SizePicker({ tallasExistentes = [], onChange }: Props) {
               <TallaChip
                 key={talla}
                 talla={talla}
+                cm={CM[talla]}
                 seleccionada={talla in seleccionadas}
                 onPress={() => toggleTalla(talla)}
               />
@@ -111,6 +128,7 @@ export default function SizePicker({ tallasExistentes = [], onChange }: Props) {
               <TallaChip
                 key={talla}
                 talla={talla}
+                cm={CM[talla]}
                 seleccionada={talla in seleccionadas}
                 onPress={() => toggleTalla(talla)}
               />
@@ -156,7 +174,7 @@ export default function SizePicker({ tallasExistentes = [], onChange }: Props) {
   );
 }
 
-function TallaChip({ talla, seleccionada, onPress }: { talla: string; seleccionada: boolean; onPress: () => void }) {
+function TallaChip({ talla, cm, seleccionada, onPress }: { talla: string; cm?: string; seleccionada: boolean; onPress: () => void }) {
   return (
     <Pressable
       style={({ pressed }) => [
@@ -167,11 +185,16 @@ function TallaChip({ talla, seleccionada, onPress }: { talla: string; selecciona
       onPress={onPress}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: seleccionada }}
-      accessibilityLabel={`Talla ${talla}`}
+      accessibilityLabel={`Talla ${talla}${cm ? `, ${cm} cm` : ''}`}
     >
       <Text style={[styles.chipTexto, seleccionada && styles.chipTextoSeleccionado]}>
         {talla}
       </Text>
+      {cm && (
+        <Text style={[styles.chipCm, seleccionada && styles.chipCmSeleccionado]}>
+          {cm} cm
+        </Text>
+      )}
     </Pressable>
   );
 }
@@ -203,6 +226,8 @@ const styles = StyleSheet.create({
   chipSeleccionado: { borderColor: '#000000', backgroundColor: '#000000' },
   chipTexto: { fontSize: 12, fontWeight: '600', color: '#CCCCCC' },
   chipTextoSeleccionado: { color: '#FFFFFF' },
+  chipCm: { fontSize: 10, color: '#CCCCCC', marginTop: 2 },
+  chipCmSeleccionado: { color: 'rgba(255,255,255,0.7)' },
 
   stockSeccion: {
     marginTop: 16,
