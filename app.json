@@ -26,7 +26,7 @@
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro",
-      "output": "static",
+      "output": "single",
       "name": "Inventario Crocs MTY",
       "shortName": "Inventario",
       "lang": "es",
