@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { Session } from '@supabase/supabase-js';
@@ -10,6 +10,7 @@ import LandingScreen from './src/screens/LandingScreen';
 import ProductListScreen from './src/screens/ProductListScreen';
 import ProductDetailScreen from './src/screens/ProductDetailScreen';
 import AddProductScreen from './src/screens/AddProductScreen';
+import WebContainer from './src/components/WebContainer';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -39,10 +40,11 @@ export default function App() {
   }
 
   if (!session) {
-    return <AuthScreen />;
+    return <WebContainer><AuthScreen /></WebContainer>;
   }
 
   return (
+    <WebContainer>
     <NavigationContainer>
       <Stack.Navigator
         screenOptions={{
@@ -76,5 +78,6 @@ export default function App() {
         />
       </Stack.Navigator>
     </NavigationContainer>
+    </WebContainer>
   );
 }

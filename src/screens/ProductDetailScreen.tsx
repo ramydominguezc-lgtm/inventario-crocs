@@ -5,12 +5,14 @@ import {
   TextInput,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   SafeAreaView,
   Image,
   Alert,
   ActivityIndicator,
   Switch,
+  Platform,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { supabase } from '../lib/supabase';
@@ -65,6 +67,47 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
     setImagenUrl(data.primary_image_url);
     setVariantes(data.product_variants ?? []);
     setCargando(false);
+
+    navigation.setOptions({
+      title: data.name,
+      headerRight: () => (
+        <Pressable
+          onPress={() => confirmarEliminar(data.id)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={({ pressed }) => [{ opacity: pressed ? 0.4 : 1 }, { paddingLeft: 8 },
+            // @ts-ignore
+            Platform.OS === 'web' ? { cursor: 'pointer' } : {}
+          ]}
+        >
+          <Text style={{ fontSize: 14, color: '#AAAAAA' }}>Eliminar</Text>
+        </Pressable>
+      ),
+    });
+  }
+
+  function confirmarEliminar(id: string) {
+    Alert.alert(
+      'Eliminar producto',
+      '¿Estás seguro? Esta acción no se puede deshacer.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => eliminarProducto(id),
+        },
+      ]
+    );
+  }
+
+  async function eliminarProducto(id: string) {
+    await supabase.from('product_variants').delete().eq('product_id', id);
+    const { error } = await supabase.from('products').delete().eq('id', id);
+    if (error) {
+      Alert.alert('Error', 'No se pudo eliminar el producto.');
+    } else {
+      navigation.goBack();
+    }
   }
 
   async function cambiarImagen() {

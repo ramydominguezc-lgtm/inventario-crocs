@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Image, Pressable, StyleSheet, Platform } from 'react-native';
 import { Product } from '../types';
 
 interface Props {
@@ -12,29 +12,46 @@ export default function ProductCard({ product, onPress }: Props) {
     product.product_variants?.reduce((sum, v) => (v.is_active ? sum + v.stock : sum), 0) ?? 0;
 
   return (
-    <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
-      <Image
-        source={{ uri: product.primary_image_url }}
-        style={styles.image}
-        resizeMode="cover"
-      />
+    <Pressable
+      style={({ pressed }) => [
+        styles.container,
+        pressed && styles.containerPressed,
+      ]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Ver ${product.name}`}
+    >
+      {product.primary_image_url ? (
+        <Image
+          source={{ uri: product.primary_image_url }}
+          style={styles.imagen}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={[styles.imagen, styles.imagenVacia]}>
+          <Text style={styles.imagenVaciaTexto}>Sin foto</Text>
+        </View>
+      )}
+
       <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={2}>{product.name}</Text>
+        <Text style={styles.nombre} numberOfLines={2}>{product.name}</Text>
         {product.price_mxn != null && (
-          <Text style={styles.price}>${product.price_mxn.toFixed(0)} MXN</Text>
+          <Text style={styles.precio}>${product.price_mxn.toFixed(0)} MXN</Text>
         )}
-        <View style={styles.stockRow}>
-          <View style={[styles.stockBadge, totalStock === 0 && styles.stockBadgeEmpty]}>
-            <Text style={[styles.stockText, totalStock === 0 && styles.stockTextEmpty]}>
-              {totalStock === 0 ? 'Sin stock' : `${totalStock} piezas`}
+        <View style={styles.fila}>
+          <View style={[styles.stockBadge, totalStock === 0 && styles.stockBadgeVacio]}>
+            <Text style={[styles.stockTexto, totalStock === 0 && styles.stockTextoVacio]}>
+              {totalStock === 0 ? 'Sin stock' : `${totalStock} pzs`}
             </Text>
           </View>
           {!product.is_active && (
-            <Text style={styles.inactiveLabel}>Inactivo</Text>
+            <Text style={styles.inactivo}>Inactivo</Text>
           )}
         </View>
       </View>
-    </TouchableOpacity>
+
+      <Text style={styles.chevron}>›</Text>
+    </Pressable>
   );
 }
 
@@ -47,54 +64,72 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F0F0F0',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
+    // @ts-ignore — cursor solo aplica en web
+    cursor: Platform.OS === 'web' ? 'pointer' : undefined,
   },
-  image: {
+  containerPressed: {
+    backgroundColor: '#F8F8F8',
+  },
+  imagen: {
     width: 64,
     height: 64,
     borderRadius: 8,
     backgroundColor: '#F5F5F5',
   },
+  imagenVacia: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imagenVaciaTexto: {
+    fontSize: 10,
+    color: '#CCCCCC',
+  },
   info: {
     flex: 1,
-    marginLeft: 16,
+    marginLeft: 14,
     gap: 4,
   },
-  name: {
+  nombre: {
     fontSize: 15,
     fontWeight: '600',
     color: '#000000',
     lineHeight: 20,
   },
-  price: {
+  precio: {
     fontSize: 13,
     fontWeight: '400',
     color: '#555555',
   },
-  stockRow: {
+  fila: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginTop: 2,
   },
   stockBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     backgroundColor: '#000000',
-    borderRadius: 4,
+    borderRadius: 3,
   },
-  stockBadgeEmpty: {
-    backgroundColor: '#E0E0E0',
+  stockBadgeVacio: {
+    backgroundColor: '#F0F0F0',
   },
-  stockText: {
+  stockTexto: {
     fontSize: 11,
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  stockTextEmpty: {
-    color: '#888888',
-  },
-  inactiveLabel: {
-    fontSize: 11,
+  stockTextoVacio: {
     color: '#AAAAAA',
-    fontWeight: '400',
+  },
+  inactivo: {
+    fontSize: 11,
+    color: '#CCCCCC',
+  },
+  chevron: {
+    fontSize: 22,
+    color: '#CCCCCC',
+    marginLeft: 8,
   },
 });
