@@ -27,6 +27,8 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
   const [cargando, setCargando] = useState(true);
   const [guardandoTallas, setGuardandoTallas] = useState(false);
   const [tallasPendientes, setTallasPendientes] = useState<TallaConStock[]>([]);
+  // Qué stock se está viendo/editando: venta (piso) o almacén (bodega).
+  const [vistaStock, setVistaStock] = useState<'venta' | 'almacen'>('venta');
 
   const [nombre, setNombre] = useState('');
   const [descripcion, setDescripcion] = useState('');
@@ -206,10 +208,11 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
                 <Text style={s.seccionLink}>Ver historial →</Text>
               </Pressable>
             </View>
+            <VistaToggle vista={vistaStock} onChange={setVistaStock} s={s} C={C} />
             <View style={s.variantesGrupo}>
               {variantesActivas.map(v => (
                 <VarianteStockRow
-                  key={v.id} v={v} productId={productId}
+                  key={v.id} v={v} productId={productId} vista={vistaStock}
                   onVenta={nuevo => setVariantes(prev => prev.map(p => p.id === v.id ? { ...p, stock: nuevo } : p))}
                   onAlmacen={nuevo => setVariantes(prev => prev.map(p => p.id === v.id ? { ...p, stock_almacen: nuevo } : p))}
                   onMover={() => moverAVenta(v)}
@@ -297,17 +300,20 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
               )}
             </View>
             {variantesActivas.length > 0 && (
-              <View style={s.variantesGrupo}>
-                {variantesActivas.map(v => (
-                  <VarianteStockRow
-                    key={v.id} v={v} productId={productId}
-                    onVenta={nuevo => setVariantes(prev => prev.map(p => p.id === v.id ? { ...p, stock: nuevo } : p))}
-                    onAlmacen={nuevo => setVariantes(prev => prev.map(p => p.id === v.id ? { ...p, stock_almacen: nuevo } : p))}
-                    onMover={() => moverAVenta(v)}
-                    s={s} C={C}
-                  />
-                ))}
-              </View>
+              <>
+                <VistaToggle vista={vistaStock} onChange={setVistaStock} s={s} C={C} />
+                <View style={s.variantesGrupo}>
+                  {variantesActivas.map(v => (
+                    <VarianteStockRow
+                      key={v.id} v={v} productId={productId} vista={vistaStock}
+                      onVenta={nuevo => setVariantes(prev => prev.map(p => p.id === v.id ? { ...p, stock: nuevo } : p))}
+                      onAlmacen={nuevo => setVariantes(prev => prev.map(p => p.id === v.id ? { ...p, stock_almacen: nuevo } : p))}
+                      onMover={() => moverAVenta(v)}
+                      s={s} C={C}
+                    />
+                  ))}
+                </View>
+              </>
             )}
             <AgregarVarianteOtros productId={productId} onAgregada={v => setVariantes(prev => [...prev, v])} C={C} s={s} />
           </>
@@ -368,34 +374,46 @@ function AgregarVarianteOtros({ productId, onAgregada, C, s }: { productId: stri
   );
 }
 
-// Fila de stock por talla: muestra Venta (piso), Almacén (bodega), el total y un botón
-// para pasar piezas de almacén a venta.
-function VarianteStockRow({ v, productId, onVenta, onAlmacen, onMover, s, C }: {
-  v: ProductVariant; productId: string;
+// Toggle para alternar la vista de stock entre Venta (piso) y Almacén (bodega).
+function VistaToggle({ vista, onChange, s, C }: {
+  vista: 'venta' | 'almacen'; onChange: (v: 'venta' | 'almacen') => void; s: any; C: Colors;
+}) {
+  return (
+    <View style={s.vistaToggle}>
+      <Pressable
+        onPress={() => onChange('venta')}
+        style={({ pressed }) => [s.vistaBtn, vista === 'venta' && s.vistaBtnActivo, pressed && { opacity: 0.8 }]}
+      >
+        <Text style={[s.vistaBtnTxt, vista === 'venta' && s.vistaBtnTxtActivo]}>💰 Venta</Text>
+      </Pressable>
+      <Pressable
+        onPress={() => onChange('almacen')}
+        style={({ pressed }) => [s.vistaBtn, vista === 'almacen' && s.vistaBtnActivo, pressed && { opacity: 0.8 }]}
+      >
+        <Text style={[s.vistaBtnTxt, vista === 'almacen' && s.vistaBtnTxtActivo]}>📦 Almacén</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+// Fila compacta de stock por talla. Muestra UN solo control (venta o almacén según la
+// vista activa) más el total. En vista almacén aparece el botón para pasar a venta.
+function VarianteStockRow({ v, productId, vista, onVenta, onAlmacen, onMover, s, C }: {
+  v: ProductVariant; productId: string; vista: 'venta' | 'almacen';
   onVenta: (n: number) => void; onAlmacen: (n: number) => void; onMover: () => void;
   s: any; C: Colors;
 }) {
   const enAlmacen = v.stock_almacen ?? 0;
   const total = v.stock + enAlmacen;
+  const esVenta = vista === 'venta';
   return (
-    <View style={s.varianteCard}>
-      <View style={s.varianteHeader}>
+    <View style={s.varianteFila}>
+      <View style={s.varianteIzq}>
         <TallaLabel sizeLabel={v.size_label} s={s} C={C} />
-        <View style={s.totalBadge}>
-          <Text style={s.totalBadgeNum}>{total}</Text>
-          <Text style={s.totalBadgeLbl}>total</Text>
-        </View>
+        <Text style={s.totalInline}>{total} total</Text>
       </View>
-
-      <View style={s.stockLinea}>
-        <Text style={s.stockLineaLbl}>💰 Venta</Text>
-        <StockControl varianteId={v.id} productId={productId} stockInicial={v.stock}
-          columna="stock" modo="venta" onCambio={onVenta} />
-      </View>
-
-      <View style={s.stockLinea}>
-        <View style={s.almacenLblWrap}>
-          <Text style={s.stockLineaLbl}>📦 Almacén</Text>
+      <View style={s.varianteDer}>
+        {!esVenta && (
           <Pressable
             onPress={onMover}
             disabled={enAlmacen === 0}
@@ -404,9 +422,15 @@ function VarianteStockRow({ v, productId, onVenta, onAlmacen, onMover, s, C }: {
           >
             <Text style={[s.moverBtnTxt, enAlmacen === 0 && s.moverBtnTxtOff]}>→ a venta</Text>
           </Pressable>
-        </View>
-        <StockControl varianteId={v.id} productId={productId} stockInicial={enAlmacen}
-          columna="stock_almacen" modo="almacen" onCambio={onAlmacen} />
+        )}
+        <StockControl
+          key={vista}
+          varianteId={v.id} productId={productId}
+          stockInicial={esVenta ? v.stock : enAlmacen}
+          columna={esVenta ? 'stock' : 'stock_almacen'}
+          modo={esVenta ? 'venta' : 'almacen'}
+          onCambio={esVenta ? onVenta : onAlmacen}
+        />
       </View>
     </View>
   );
@@ -468,15 +492,21 @@ function getStyles(C: Colors) {
     varianteTallaMX: { fontSize: 16, fontWeight: '600', color: C.text },
     varianteTallaCrocs: { fontSize: 12, color: C.textMuted, marginTop: 1 },
 
-    // Tarjeta de stock por talla (venta + almacén + total)
-    varianteCard: { paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border, gap: 10 },
-    varianteHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    totalBadge: { flexDirection: 'row', alignItems: 'baseline', gap: 4, backgroundColor: C.surface, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
-    totalBadgeNum: { fontSize: 16, fontWeight: '700', color: C.text },
-    totalBadgeLbl: { fontSize: 11, color: C.textMuted },
-    stockLinea: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 44 },
-    stockLineaLbl: { fontSize: 14, color: C.text },
-    almacenLblWrap: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    // Toggle Venta / Almacén
+    vistaToggle: { flexDirection: 'row', marginHorizontal: 20, marginTop: 10, marginBottom: 4, backgroundColor: C.surface, borderRadius: 10, padding: 3 },
+    vistaBtn: {
+      flex: 1, paddingVertical: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 8,
+      // @ts-ignore
+      cursor: Platform.OS === 'web' ? 'pointer' : undefined,
+    },
+    vistaBtnActivo: { backgroundColor: C.bg, borderWidth: 1, borderColor: C.borderInput },
+    vistaBtnTxt: { fontSize: 13, fontWeight: '600', color: C.textMuted },
+    vistaBtnTxtActivo: { color: C.text },
+
+    // Fila compacta de talla
+    varianteIzq: { flexDirection: 'column', gap: 1 },
+    totalInline: { fontSize: 12, color: C.textMuted, marginTop: 2 },
+    varianteDer: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     moverBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1, borderColor: C.accent, backgroundColor: C.surface },
     moverBtnOff: { borderColor: C.border, backgroundColor: 'transparent' },
     moverBtnTxt: { fontSize: 12, fontWeight: '600', color: C.accent },
