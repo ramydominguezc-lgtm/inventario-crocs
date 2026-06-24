@@ -1,15 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import { useColors, Colors } from '../theme';
-
-const TALLAS_NINOS = ['C4/5', 'C6/7', 'C8/9', 'C10/11', 'C12/13'];
-const TALLAS_ADULTOS = ['M4/W6', 'M5/W7', 'M6/W8', 'M7/W9', 'M8/W10', 'M9/W11', 'M10/W12', 'M11/W13'];
-
-const CM: Record<string, string> = {
-  'C4/5': '12-13', 'C6/7': '14-15', 'C8/9': '16-17', 'C10/11': '18-19', 'C12/13': '20-21',
-  'M4/W6': '22', 'M5/W7': '23', 'M6/W8': '24', 'M7/W9': '25',
-  'M8/W10': '26', 'M9/W11': '27', 'M10/W12': '28', 'M11/W13': '29',
-};
+import { TALLAS_NINOS, TALLAS_ADULTOS, CM } from '../lib/tallas';
 
 export interface TallaConStock { size_label: string; stock: number; }
 

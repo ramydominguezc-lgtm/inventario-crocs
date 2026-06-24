@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Image, Pressable, StyleSheet, Platform } from 'react-native';
 import { Product } from '../types';
 import { useColors, Colors, LOW_STOCK_THRESHOLD } from '../theme';
+import { ordenarPorTalla, tallaCorta } from '../lib/tallas';
 
 interface Props {
   product: Product;
@@ -18,6 +19,9 @@ export default function ProductCard({ product, onPress, onLongPress, reordenando
   const C = useColors();
   const totalStock = product.product_variants?.reduce((sum, v) => (v.is_active ? sum + v.stock : sum), 0) ?? 0;
   const stockBajo = totalStock > 0 && totalStock <= LOW_STOCK_THRESHOLD;
+  // Tallas activas ordenadas de menor a mayor para mostrarlas en la tarjeta.
+  const variantesActivas = ordenarPorTalla((product.product_variants ?? []).filter(v => v.is_active));
+  const mostrarTallas = product.category !== 'charms' && variantesActivas.length > 0;
 
   const s = getStyles(C);
 
@@ -52,6 +56,21 @@ export default function ProductCard({ product, onPress, onLongPress, reordenando
           {stockBajo && <Text style={s.stockBajoLabel}>Stock bajo</Text>}
           {!product.is_active && <Text style={s.inactivo}>Inactivo</Text>}
         </View>
+
+        {mostrarTallas && (
+          <View style={s.tallasGrid}>
+            {variantesActivas.map(v => {
+              const agotada = v.stock === 0;
+              const baja = v.stock > 0 && v.stock <= LOW_STOCK_THRESHOLD;
+              return (
+                <View key={v.id} style={[s.tallaChip, baja && s.tallaChipBaja, agotada && s.tallaChipAgotada]}>
+                  <Text style={[s.tallaChipTalla, agotada && s.tallaChipApagada]}>{tallaCorta(v.size_label)}</Text>
+                  <Text style={[s.tallaChipStock, baja && s.tallaChipStockBaja, agotada && s.tallaChipApagada]}>{v.stock}</Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
       </View>
 
       {reordenando ? (
@@ -109,6 +128,17 @@ function getStyles(C: Colors) {
     stockTextoBajo: { color: C.stockBajoText },
     stockBajoLabel: { fontSize: 11, color: C.warning, fontWeight: '600' },
     inactivo: { fontSize: 11, color: C.textPlaceholder },
+    tallasGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 8 },
+    tallaChip: {
+      alignItems: 'center', minWidth: 36, paddingHorizontal: 7, paddingVertical: 3,
+      backgroundColor: C.surface, borderRadius: 5,
+    },
+    tallaChipBaja: { backgroundColor: C.stockBajoBg, borderWidth: 1, borderColor: C.stockBajoBorder },
+    tallaChipAgotada: { backgroundColor: 'transparent', borderWidth: 1, borderColor: C.border },
+    tallaChipTalla: { fontSize: 10, fontWeight: '600', color: C.textMuted },
+    tallaChipStock: { fontSize: 14, fontWeight: '700', color: C.text, marginTop: 1 },
+    tallaChipStockBaja: { color: C.stockBajoText },
+    tallaChipApagada: { color: C.textPlaceholder },
     chevron: { fontSize: 22, color: C.textPlaceholder, marginLeft: 8 },
     reordenBotones: { flexDirection: 'column', gap: 2, marginLeft: 8 },
     reordenBtn: {

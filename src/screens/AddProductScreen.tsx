@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   View, Text, TextInput, ScrollView, StyleSheet, SafeAreaView,
-  Image, Alert, ActivityIndicator, Switch, Pressable, Platform,
+  Image, Alert, ActivityIndicator, Switch, Pressable,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { supabase } from '../lib/supabase';
@@ -22,12 +22,15 @@ export default function AddProductScreen({ navigation, route }: Props) {
   const C = useColors();
   const s = useMemo(() => getStyles(C), [C]);
 
+  const productoId = useMemo(() => crypto.randomUUID(), []);
+  const maxImagenes = category === 'charms' ? 2 : 5;
+
   const [nombre, setNombre] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [precio, setPrecio] = useState('');
   const [isNew, setIsNew] = useState(false);
   const [isHot, setIsHot] = useState(false);
-  const [imagenUrl, setImagenUrl] = useState<string | null>(null);
+  const [imagenesUrls, setImagenesUrls] = useState<string[]>([]);
   const [guardando, setGuardando] = useState(false);
   const [subiendoImagen, setSubiendoImagen] = useState(false);
 
@@ -46,12 +49,17 @@ export default function AddProductScreen({ navigation, route }: Props) {
   const esCrocs = category === 'crocs';
   const esCharms = category === 'charms';
 
-  async function seleccionarImagen() {
+  async function agregarImagen() {
+    if (imagenesUrls.length >= maxImagenes) return;
     setSubiendoImagen(true);
-    const url = await pickAndUploadImage('products/temp');
+    const url = await pickAndUploadImage(`products/${productoId}`);
     setSubiendoImagen(false);
-    if (url) setImagenUrl(url);
+    if (url) setImagenesUrls(prev => [...prev, url]);
     else Alert.alert('Error', 'No se pudo subir la imagen.');
+  }
+
+  function eliminarImagen(idx: number) {
+    setImagenesUrls(prev => prev.filter((_, i) => i !== idx));
   }
 
   function agregarVariante() {
@@ -69,7 +77,6 @@ export default function AddProductScreen({ navigation, route }: Props) {
     if (!nombre.trim()) { Alert.alert('Campo requerido', 'El nombre no puede estar vacío.'); return; }
     setGuardando(true);
 
-    const productoId = crypto.randomUUID();
     const { error: productoError } = await supabase.from('products').insert({
       id: productoId,
       name: nombre.trim(),
@@ -78,7 +85,7 @@ export default function AddProductScreen({ navigation, route }: Props) {
       price_mxn: precio ? parseFloat(precio) : null,
       is_new: isNew, is_hot: isHot, is_active: true,
       category,
-      primary_image_url: imagenUrl ?? '',
+      primary_image_url: imagenesUrls[0] ?? '',
       pieces_count: esCharms && piezasCount ? parseInt(piezasCount, 10) : null,
     });
 
@@ -99,6 +106,12 @@ export default function AddProductScreen({ navigation, route }: Props) {
       );
     }
 
+    if (imagenesUrls.length > 0) {
+      await supabase.from('product_images').insert(
+        imagenesUrls.map((url, idx) => ({ product_id: productoId, image_url: url, sort_order: idx }))
+      );
+    }
+
     setGuardando(false);
     Alert.alert('¡Creado!', 'Producto agregado correctamente.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
   }
@@ -107,25 +120,36 @@ export default function AddProductScreen({ navigation, route }: Props) {
     <SafeAreaView style={s.safe}>
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
 
-        {/* Imagen */}
-        <Pressable style={s.imagenContainer} onPress={seleccionarImagen} disabled={subiendoImagen}>
-          {imagenUrl
-            ? <Image source={{ uri: imagenUrl }} style={s.imagen} resizeMode="cover" />
-            : <View style={s.imagenVacia}>
-                <Text style={s.imagenVaciaIcono}>＋</Text>
-                <Text style={s.imagenVaciaTexto}>Agregar imagen</Text>
+        {/* Imágenes */}
+        <View style={s.galeriaContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.galeriaScroll}>
+            {imagenesUrls.map((url, idx) => (
+              <View key={idx} style={s.galeriaThumb}>
+                <Image source={{ uri: url }} style={s.galeriaImg} resizeMode="cover" />
+                {idx === 0 && <View style={s.galeriaBadge}><Text style={s.galeriaBadgeText}>principal</Text></View>}
+                <Pressable
+                  style={s.galeriaEliminar}
+                  onPress={() => eliminarImagen(idx)}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <Text style={s.galeriaEliminarTexto}>✕</Text>
+                </Pressable>
               </View>
-          }
-          {subiendoImagen && (
-            <View style={s.imagenOverlay}>
-              <ActivityIndicator color="#FFFFFF" size="large" />
-              <Text style={s.subiendoTexto}>Subiendo imagen...</Text>
-            </View>
-          )}
-          {imagenUrl && !subiendoImagen && (
-            <View style={s.imagenBoton}><Text style={s.imagenBotonTexto}>Cambiar imagen</Text></View>
-          )}
-        </Pressable>
+            ))}
+            {imagenesUrls.length < maxImagenes && (
+              <Pressable style={[s.galeriaThumb, s.galeriaAgregar]} onPress={agregarImagen} disabled={subiendoImagen}>
+                {subiendoImagen
+                  ? <ActivityIndicator color={C.textMuted} />
+                  : <>
+                      <Text style={s.galeriaIcono}>＋</Text>
+                      <Text style={s.galeriaTexto}>{imagenesUrls.length === 0 ? 'Agregar foto' : 'Más fotos'}</Text>
+                    </>
+                }
+              </Pressable>
+            )}
+          </ScrollView>
+          <Text style={s.galeriaContador}>{imagenesUrls.length}/{maxImagenes} fotos</Text>
+        </View>
 
         {/* Campos básicos */}
         <View style={s.grupo}>
@@ -283,15 +307,18 @@ function getStyles(C: Colors) {
     safe: { flex: 1, backgroundColor: C.bg },
     scroll: { paddingBottom: 48 },
 
-    imagenContainer: { position: 'relative' },
-    imagen: { width: '100%', height: 240 },
-    imagenVacia: { width: '100%', height: 240, backgroundColor: C.surface, justifyContent: 'center', alignItems: 'center', gap: 8 },
-    imagenVaciaIcono: { fontSize: 32, color: C.textPlaceholder },
-    imagenVaciaTexto: { color: C.textPlaceholder, fontSize: 14 },
-    imagenOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', gap: 8 },
-    subiendoTexto: { color: '#FFFFFF', fontSize: 13 },
-    imagenBoton: { position: 'absolute', bottom: 12, right: 12, backgroundColor: C.accent, paddingHorizontal: 12, paddingVertical: 7 },
-    imagenBotonTexto: { color: C.accentFg, fontSize: 12, fontWeight: '600' },
+    galeriaContainer: { borderBottomWidth: 1, borderBottomColor: C.border },
+    galeriaScroll: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 4, gap: 10, flexDirection: 'row' },
+    galeriaThumb: { width: 90, height: 90, position: 'relative' },
+    galeriaImg: { width: 90, height: 90 },
+    galeriaBadge: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.55)', paddingVertical: 3, alignItems: 'center' },
+    galeriaBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '600' },
+    galeriaEliminar: { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.65)', width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+    galeriaEliminarTexto: { color: '#FFFFFF', fontSize: 10, lineHeight: 12 },
+    galeriaAgregar: { backgroundColor: C.surface, justifyContent: 'center', alignItems: 'center', gap: 4 },
+    galeriaIcono: { fontSize: 22, color: C.textPlaceholder },
+    galeriaTexto: { fontSize: 11, color: C.textPlaceholder },
+    galeriaContador: { fontSize: 11, color: C.textFaint, paddingHorizontal: 20, paddingBottom: 8 },
 
     grupo: { paddingHorizontal: 20, paddingTop: 24, gap: 16 },
     grupoFila: { flexDirection: 'row', paddingHorizontal: 20, paddingTop: 16, gap: 12 },

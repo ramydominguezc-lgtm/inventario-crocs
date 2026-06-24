@@ -1,16 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, TextInput, ScrollView, Pressable, StyleSheet,
-  SafeAreaView, Image, Alert, ActivityIndicator, Switch, Platform,
+  SafeAreaView, Alert, ActivityIndicator, Switch, Platform,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { supabase } from '../lib/supabase';
-import { pickAndUploadImage } from '../lib/imageUpload';
 import { Product, ProductVariant, RootStackParamList } from '../types';
 import StockControl from '../components/StockControl';
 import SizePicker, { TallaConStock } from '../components/SizePicker';
+import ImageGallery from '../components/ImageGallery';
 import Toast, { useToast } from '../components/Toast';
 import { useColors, Colors } from '../theme';
+import { ordenarPorTalla, tallaMX } from '../lib/tallas';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
 
@@ -24,7 +25,6 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
   const [variantes, setVariantes] = useState<ProductVariant[]>([]);
   const [guardando, setGuardando] = useState(false);
   const [cargando, setCargando] = useState(true);
-  const [subiendoImagen, setSubiendoImagen] = useState(false);
   const [guardandoTallas, setGuardandoTallas] = useState(false);
   const [tallasPendientes, setTallasPendientes] = useState<TallaConStock[]>([]);
 
@@ -34,7 +34,6 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
   const [isNew, setIsNew] = useState(false);
   const [isHot, setIsHot] = useState(false);
   const [isActive, setIsActive] = useState(true);
-  const [imagenUrl, setImagenUrl] = useState('');
   const [piezasCount, setPiezasCount] = useState('');
 
   useEffect(() => { cargarProducto(); }, [productId]);
@@ -58,7 +57,6 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
     setIsNew(data.is_new);
     setIsHot(data.is_hot);
     setIsActive(data.is_active);
-    setImagenUrl(data.primary_image_url);
     setVariantes(data.product_variants ?? []);
     setPiezasCount(data.pieces_count?.toString() ?? '');
     setCargando(false);
@@ -79,14 +77,6 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
     else navigation.goBack();
   }
 
-  async function cambiarImagen() {
-    setSubiendoImagen(true);
-    const url = await pickAndUploadImage(`products/${productId}`);
-    setSubiendoImagen(false);
-    if (url) setImagenUrl(url);
-    else Alert.alert('Error', 'No se pudo subir la imagen.');
-  }
-
   async function guardar() {
     if (!nombre.trim()) { Alert.alert('Campo requerido', 'El nombre no puede estar vacío.'); return; }
     setGuardando(true);
@@ -95,7 +85,6 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
       description: descripcion.trim() || null,
       price_mxn: precio ? parseFloat(precio) : null,
       is_new: isNew, is_hot: isHot, is_active: isActive,
-      primary_image_url: imagenUrl,
       pieces_count: piezasCount ? parseInt(piezasCount, 10) : null,
       updated_at: new Date().toISOString(),
     }).eq('id', productId);
@@ -137,7 +126,7 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
   const categoria = producto?.category;
   const esCharms = categoria === 'charms';
   const esCrocs = categoria === 'crocs';
-  const variantesActivas = variantes.filter(v => v.is_active).sort((a, b) => a.size_label.localeCompare(b.size_label));
+  const variantesActivas = ordenarPorTalla(variantes.filter(v => v.is_active));
   const tallasExistentes = variantes.map(v => v.size_label);
 
   // Para charms: stock se guarda en variant con size_label='unidad'
@@ -147,22 +136,12 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
     <SafeAreaView style={s.safe}>
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
 
-        {/* Imagen */}
-        <Pressable style={s.imagenContainer} onPress={cambiarImagen} disabled={subiendoImagen}>
-          {imagenUrl
-            ? <Image source={{ uri: imagenUrl }} style={s.imagen} resizeMode="cover" />
-            : <View style={s.imagenVacia}><Text style={s.imagenVaciaTexto}>Sin imagen</Text></View>
-          }
-          {subiendoImagen && (
-            <View style={s.imagenOverlay}>
-              <ActivityIndicator color="#FFFFFF" size="large" />
-              <Text style={s.subiendoTexto}>Subiendo...</Text>
-            </View>
-          )}
-          <View style={s.imagenBoton}>
-            <Text style={s.imagenBotonTexto}>{subiendoImagen ? 'Subiendo...' : 'Cambiar imagen'}</Text>
+        {/* Galería de imágenes */}
+        {categoria && (
+          <View style={s.galeriaWrapper}>
+            <ImageGallery productId={productId} category={categoria} />
           </View>
-        </Pressable>
+        )}
 
         {/* Campos básicos */}
         <View style={s.grupo}>
@@ -218,7 +197,7 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
             <View style={s.variantesGrupo}>
               {variantesActivas.map(v => (
                 <View key={v.id} style={s.varianteFila}>
-                  <Text style={s.varianteTalla}>{v.size_label}</Text>
+                  <TallaLabel sizeLabel={v.size_label} s={s} C={C} />
                   <StockControl varianteId={v.id} productId={productId} stockInicial={v.stock}
                     onCambio={nuevo => setVariantes(prev => prev.map(p => p.id === v.id ? { ...p, stock: nuevo } : p))} />
                 </View>
@@ -307,7 +286,7 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
               <View style={s.variantesGrupo}>
                 {variantesActivas.map(v => (
                   <View key={v.id} style={s.varianteFila}>
-                    <Text style={s.varianteTalla}>{v.size_label}</Text>
+                    <TallaLabel sizeLabel={v.size_label} s={s} C={C} />
                     <StockControl varianteId={v.id} productId={productId} stockInicial={v.stock}
                       onCambio={nuevo => setVariantes(prev => prev.map(p => p.id === v.id ? { ...p, stock: nuevo } : p))} />
                   </View>
@@ -320,8 +299,8 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
 
         {/* Guardar */}
         <Pressable
-          style={({ pressed }) => [s.botonGuardar, (guardando || subiendoImagen) && s.botonDesactivado, pressed && { opacity: 0.8 }]}
-          onPress={guardar} disabled={guardando || subiendoImagen}
+          style={({ pressed }) => [s.botonGuardar, guardando && s.botonDesactivado, pressed && { opacity: 0.8 }]}
+          onPress={guardar} disabled={guardando}
         >
           {guardando ? <ActivityIndicator color={C.accentFg} /> : <Text style={s.botonTexto}>Guardar cambios</Text>}
         </Pressable>
@@ -373,6 +352,19 @@ function AgregarVarianteOtros({ productId, onAgregada, C, s }: { productId: stri
   );
 }
 
+// Muestra la talla mexicana (cm) como dato principal y la numeración Crocs como referencia.
+// Para variantes que no son tallas Crocs (categoría "otros"), muestra la etiqueta tal cual.
+function TallaLabel({ sizeLabel, s, C }: { sizeLabel: string; s: any; C: Colors }) {
+  const mx = tallaMX(sizeLabel);
+  if (!mx) return <Text style={s.varianteTalla}>{sizeLabel}</Text>;
+  return (
+    <View>
+      <Text style={s.varianteTallaMX}>{mx}</Text>
+      <Text style={s.varianteTallaCrocs}>Crocs {sizeLabel}</Text>
+    </View>
+  );
+}
+
 function Campo({ label, children, C }: { label: string; children: React.ReactNode; C: Colors }) {
   return (
     <View>
@@ -397,14 +389,7 @@ function getStyles(C: Colors) {
     centrado: { flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center', gap: 12 },
     scroll: { paddingBottom: 64 },
 
-    imagenContainer: { position: 'relative' },
-    imagen: { width: '100%', height: 280 },
-    imagenVacia: { width: '100%', height: 280, backgroundColor: C.surface, justifyContent: 'center', alignItems: 'center' },
-    imagenVaciaTexto: { color: C.textPlaceholder, fontSize: 14 },
-    imagenOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', gap: 8 },
-    subiendoTexto: { color: '#FFFFFF', fontSize: 13 },
-    imagenBoton: { position: 'absolute', bottom: 12, right: 12, backgroundColor: C.accent, paddingHorizontal: 12, paddingVertical: 7 },
-    imagenBotonTexto: { color: C.accentFg, fontSize: 12, fontWeight: '600' },
+    galeriaWrapper: { borderBottomWidth: 1, borderBottomColor: C.border },
 
     grupo: { paddingHorizontal: 20, paddingTop: 24, gap: 16 },
     grupoFila: { flexDirection: 'row', paddingHorizontal: 20, paddingTop: 16, gap: 12 },
@@ -420,6 +405,8 @@ function getStyles(C: Colors) {
     variantesGrupo: { borderTopWidth: 1, borderTopColor: C.border },
     varianteFila: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border, minHeight: 60 },
     varianteTalla: { fontSize: 15, color: C.text },
+    varianteTallaMX: { fontSize: 16, fontWeight: '600', color: C.text },
+    varianteTallaCrocs: { fontSize: 12, color: C.textMuted, marginTop: 1 },
 
     stockSimpleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1, borderTopColor: C.border },
     stockSimpleLabel: { fontSize: 15, color: C.text },

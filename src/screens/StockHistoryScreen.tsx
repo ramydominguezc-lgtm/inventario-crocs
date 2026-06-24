@@ -8,6 +8,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { StockMovement, RootStackParamList } from '../types';
 import { useColors, Colors } from '../theme';
+import { tallaMX } from '../lib/tallas';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'StockHistory'>;
 
@@ -96,7 +97,7 @@ export default function StockHistoryScreen({ route }: Props) {
                       <Text style={s.tipo}>{cfg.label}</Text>
                       {m.product_variants?.size_label && (
                         <View style={s.tallaBadge}>
-                          <Text style={s.tallaTexto}>{m.product_variants.size_label}</Text>
+                          <Text style={s.tallaTexto}>{tallaMX(m.product_variants.size_label) ?? m.product_variants.size_label}</Text>
                         </View>
                       )}
                     </View>
