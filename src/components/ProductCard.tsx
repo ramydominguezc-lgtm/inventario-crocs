@@ -17,7 +17,8 @@ interface Props {
 
 export default function ProductCard({ product, onPress, onLongPress, reordenando, onSubir, onBajar, esPrimero, esUltimo }: Props) {
   const C = useColors();
-  const totalStock = product.product_variants?.reduce((sum, v) => (v.is_active ? sum + v.stock : sum), 0) ?? 0;
+  // El total cuenta stock de venta (piso) + almacén (bodega).
+  const totalStock = product.product_variants?.reduce((sum, v) => (v.is_active ? sum + v.stock + (v.stock_almacen ?? 0) : sum), 0) ?? 0;
   const stockBajo = totalStock > 0 && totalStock <= LOW_STOCK_THRESHOLD;
   // Tallas activas ordenadas de menor a mayor para mostrarlas en la tarjeta.
   const variantesActivas = ordenarPorTalla((product.product_variants ?? []).filter(v => v.is_active));
@@ -60,12 +61,13 @@ export default function ProductCard({ product, onPress, onLongPress, reordenando
         {mostrarTallas && (
           <View style={s.tallasGrid}>
             {variantesActivas.map(v => {
-              const agotada = v.stock === 0;
-              const baja = v.stock > 0 && v.stock <= LOW_STOCK_THRESHOLD;
+              const totalTalla = v.stock + (v.stock_almacen ?? 0);
+              const agotada = totalTalla === 0;
+              const baja = totalTalla > 0 && totalTalla <= LOW_STOCK_THRESHOLD;
               return (
                 <View key={v.id} style={[s.tallaChip, baja && s.tallaChipBaja, agotada && s.tallaChipAgotada]}>
                   <Text style={[s.tallaChipTalla, agotada && s.tallaChipApagada]}>{tallaCorta(v.size_label)}</Text>
-                  <Text style={[s.tallaChipStock, baja && s.tallaChipStockBaja, agotada && s.tallaChipApagada]}>{v.stock}</Text>
+                  <Text style={[s.tallaChipStock, baja && s.tallaChipStockBaja, agotada && s.tallaChipApagada]}>{totalTalla}</Text>
                 </View>
               );
             })}

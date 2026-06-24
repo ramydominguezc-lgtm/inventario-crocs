@@ -8,9 +8,14 @@ interface Props {
   productId: string;
   stockInicial: number;
   onCambio?: (nuevoStock: number) => void;
+  // Columna de la tabla product_variants que controla este componente.
+  columna?: 'stock' | 'stock_almacen';
+  // 'venta': al restar pregunta si fue venta o baja (stock de piso).
+  // 'almacen': resta directo, sin preguntar (bodega).
+  modo?: 'venta' | 'almacen';
 }
 
-export default function StockControl({ varianteId, productId, stockInicial, onCambio }: Props) {
+export default function StockControl({ varianteId, productId, stockInicial, onCambio, columna = 'stock', modo = 'venta' }: Props) {
   const C = useColors();
   const s = useMemo(() => getStyles(C), [C]);
   const [stock, setStock] = useState(stockInicial);
@@ -20,11 +25,11 @@ export default function StockControl({ varianteId, productId, stockInicial, onCa
   useEffect(() => { setStock(stockInicial); }, [stockInicial]);
   useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
 
-  function guardarMovimiento(delta: number, tipo: 'venta' | 'baja' | 'restock') {
+  function guardarMovimiento(delta: number, tipo: 'venta' | 'baja' | 'restock' | 'ajuste') {
     supabase.from('stock_movements').insert({ variant_id: varianteId, product_id: productId, delta, type: tipo });
   }
 
-  function aplicarCambio(nuevo: number, tipo: 'venta' | 'baja' | 'restock') {
+  function aplicarCambio(nuevo: number, tipo: 'venta' | 'baja' | 'restock' | 'ajuste') {
     const delta = nuevo - stock;
     setStock(nuevo);
     setEsperandoTipo(false);
@@ -33,13 +38,16 @@ export default function StockControl({ varianteId, productId, stockInicial, onCa
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       await supabase.from('product_variants')
-        .update({ stock: nuevo, stock_updated_at: new Date().toISOString() })
+        .update({ [columna]: nuevo, stock_updated_at: new Date().toISOString() })
         .eq('id', varianteId);
     }, 600);
   }
 
   function presionarMenos() {
-    if (stock === 0 || esperandoTipo) { setEsperandoTipo(false); return; }
+    if (stock === 0) { setEsperandoTipo(false); return; }
+    // En almacén la resta es directa (ajuste de bodega); en venta preguntamos el motivo.
+    if (modo === 'almacen') { aplicarCambio(stock - 1, 'ajuste'); return; }
+    if (esperandoTipo) { setEsperandoTipo(false); return; }
     setEsperandoTipo(true);
   }
 

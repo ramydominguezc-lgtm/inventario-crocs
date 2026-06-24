@@ -4,7 +4,8 @@ export interface ProductVariant {
   id: string;
   product_id: string;
   size_label: string;
-  stock: number;
+  stock: number;          // stock de venta (piso / exhibición)
+  stock_almacen: number;  // stock en bodega / almacén
   is_active: boolean;
   created_at: string;
   updated_at: string;

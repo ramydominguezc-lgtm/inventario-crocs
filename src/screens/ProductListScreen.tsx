@@ -23,7 +23,8 @@ const FILTROS: { id: Filtro; label: string }[] = [
 ];
 
 function totalStock(p: Product) {
-  return p.product_variants?.filter(v => v.is_active).reduce((s, v) => s + v.stock, 0) ?? 0;
+  // Cuenta stock de venta (piso) + almacén (bodega).
+  return p.product_variants?.filter(v => v.is_active).reduce((s, v) => s + v.stock + (v.stock_almacen ?? 0), 0) ?? 0;
 }
 
 export default function ProductListScreen({ navigation, route }: Props) {

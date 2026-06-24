@@ -115,6 +115,18 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
     }
   }
 
+  // Mueve 1 pieza de almacén (bodega) al stock de venta (piso).
+  async function moverAVenta(v: ProductVariant) {
+    const enAlmacen = v.stock_almacen ?? 0;
+    if (enAlmacen <= 0) return;
+    const nuevoAlmacen = enAlmacen - 1;
+    const nuevoVenta = v.stock + 1;
+    setVariantes(prev => prev.map(p => p.id === v.id ? { ...p, stock: nuevoVenta, stock_almacen: nuevoAlmacen } : p));
+    await supabase.from('product_variants')
+      .update({ stock: nuevoVenta, stock_almacen: nuevoAlmacen, stock_updated_at: new Date().toISOString() })
+      .eq('id', v.id);
+  }
+
   if (cargando) {
     return (
       <SafeAreaView style={s.centrado}>
@@ -196,11 +208,13 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
             </View>
             <View style={s.variantesGrupo}>
               {variantesActivas.map(v => (
-                <View key={v.id} style={s.varianteFila}>
-                  <TallaLabel sizeLabel={v.size_label} s={s} C={C} />
-                  <StockControl varianteId={v.id} productId={productId} stockInicial={v.stock}
-                    onCambio={nuevo => setVariantes(prev => prev.map(p => p.id === v.id ? { ...p, stock: nuevo } : p))} />
-                </View>
+                <VarianteStockRow
+                  key={v.id} v={v} productId={productId}
+                  onVenta={nuevo => setVariantes(prev => prev.map(p => p.id === v.id ? { ...p, stock: nuevo } : p))}
+                  onAlmacen={nuevo => setVariantes(prev => prev.map(p => p.id === v.id ? { ...p, stock_almacen: nuevo } : p))}
+                  onMover={() => moverAVenta(v)}
+                  s={s} C={C}
+                />
               ))}
             </View>
           </>
@@ -285,11 +299,13 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
             {variantesActivas.length > 0 && (
               <View style={s.variantesGrupo}>
                 {variantesActivas.map(v => (
-                  <View key={v.id} style={s.varianteFila}>
-                    <TallaLabel sizeLabel={v.size_label} s={s} C={C} />
-                    <StockControl varianteId={v.id} productId={productId} stockInicial={v.stock}
-                      onCambio={nuevo => setVariantes(prev => prev.map(p => p.id === v.id ? { ...p, stock: nuevo } : p))} />
-                  </View>
+                  <VarianteStockRow
+                    key={v.id} v={v} productId={productId}
+                    onVenta={nuevo => setVariantes(prev => prev.map(p => p.id === v.id ? { ...p, stock: nuevo } : p))}
+                    onAlmacen={nuevo => setVariantes(prev => prev.map(p => p.id === v.id ? { ...p, stock_almacen: nuevo } : p))}
+                    onMover={() => moverAVenta(v)}
+                    s={s} C={C}
+                  />
                 ))}
               </View>
             )}
@@ -352,6 +368,50 @@ function AgregarVarianteOtros({ productId, onAgregada, C, s }: { productId: stri
   );
 }
 
+// Fila de stock por talla: muestra Venta (piso), Almacén (bodega), el total y un botón
+// para pasar piezas de almacén a venta.
+function VarianteStockRow({ v, productId, onVenta, onAlmacen, onMover, s, C }: {
+  v: ProductVariant; productId: string;
+  onVenta: (n: number) => void; onAlmacen: (n: number) => void; onMover: () => void;
+  s: any; C: Colors;
+}) {
+  const enAlmacen = v.stock_almacen ?? 0;
+  const total = v.stock + enAlmacen;
+  return (
+    <View style={s.varianteCard}>
+      <View style={s.varianteHeader}>
+        <TallaLabel sizeLabel={v.size_label} s={s} C={C} />
+        <View style={s.totalBadge}>
+          <Text style={s.totalBadgeNum}>{total}</Text>
+          <Text style={s.totalBadgeLbl}>total</Text>
+        </View>
+      </View>
+
+      <View style={s.stockLinea}>
+        <Text style={s.stockLineaLbl}>💰 Venta</Text>
+        <StockControl varianteId={v.id} productId={productId} stockInicial={v.stock}
+          columna="stock" modo="venta" onCambio={onVenta} />
+      </View>
+
+      <View style={s.stockLinea}>
+        <View style={s.almacenLblWrap}>
+          <Text style={s.stockLineaLbl}>📦 Almacén</Text>
+          <Pressable
+            onPress={onMover}
+            disabled={enAlmacen === 0}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            style={({ pressed }) => [s.moverBtn, enAlmacen === 0 && s.moverBtnOff, pressed && { opacity: 0.7 }]}
+          >
+            <Text style={[s.moverBtnTxt, enAlmacen === 0 && s.moverBtnTxtOff]}>→ a venta</Text>
+          </Pressable>
+        </View>
+        <StockControl varianteId={v.id} productId={productId} stockInicial={enAlmacen}
+          columna="stock_almacen" modo="almacen" onCambio={onAlmacen} />
+      </View>
+    </View>
+  );
+}
+
 // Muestra la talla mexicana (cm) como dato principal y la numeración Crocs como referencia.
 // Para variantes que no son tallas Crocs (categoría "otros"), muestra la etiqueta tal cual.
 function TallaLabel({ sizeLabel, s, C }: { sizeLabel: string; s: any; C: Colors }) {
@@ -407,6 +467,20 @@ function getStyles(C: Colors) {
     varianteTalla: { fontSize: 15, color: C.text },
     varianteTallaMX: { fontSize: 16, fontWeight: '600', color: C.text },
     varianteTallaCrocs: { fontSize: 12, color: C.textMuted, marginTop: 1 },
+
+    // Tarjeta de stock por talla (venta + almacén + total)
+    varianteCard: { paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border, gap: 10 },
+    varianteHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    totalBadge: { flexDirection: 'row', alignItems: 'baseline', gap: 4, backgroundColor: C.surface, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+    totalBadgeNum: { fontSize: 16, fontWeight: '700', color: C.text },
+    totalBadgeLbl: { fontSize: 11, color: C.textMuted },
+    stockLinea: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 44 },
+    stockLineaLbl: { fontSize: 14, color: C.text },
+    almacenLblWrap: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    moverBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1, borderColor: C.accent, backgroundColor: C.surface },
+    moverBtnOff: { borderColor: C.border, backgroundColor: 'transparent' },
+    moverBtnTxt: { fontSize: 12, fontWeight: '600', color: C.accent },
+    moverBtnTxtOff: { color: C.textPlaceholder },
 
     stockSimpleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1, borderTopColor: C.border },
     stockSimpleLabel: { fontSize: 15, color: C.text },

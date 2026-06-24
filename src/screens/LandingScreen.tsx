@@ -46,7 +46,7 @@ export default function LandingScreen({ navigation }: Props) {
         if (p.is_active) r[cat]!.productos += 1;
         const piezas = (p.product_variants ?? [])
           .filter((v: any) => v.is_active)
-          .reduce((s: number, v: any) => s + (v.stock ?? 0), 0);
+          .reduce((s: number, v: any) => s + (v.stock ?? 0) + (v.stock_almacen ?? 0), 0);
         r[cat]!.piezas += piezas;
       }
       setResumen(r);
@@ -60,7 +60,7 @@ export default function LandingScreen({ navigation }: Props) {
     setExportando(true);
     const { data } = await supabase
       .from('products')
-      .select('name, category, price_mxn, is_active, product_variants(size_label, stock, is_active)')
+      .select('name, category, price_mxn, is_active, product_variants(size_label, stock, stock_almacen, is_active)')
       .order('category')
       .order('name');
 
@@ -70,14 +70,16 @@ export default function LandingScreen({ navigation }: Props) {
       return;
     }
 
-    const filas: string[] = ['Categoría,Nombre,Precio MXN,Activo,Talla,Stock'];
+    const filas: string[] = ['Categoría,Nombre,Precio MXN,Activo,Talla,Stock venta,Stock almacén,Stock total'];
     for (const p of data as any[]) {
       const variantes = (p.product_variants ?? []).filter((v: any) => v.is_active);
       if (variantes.length === 0) {
-        filas.push(`${p.category},"${p.name}",${p.price_mxn ?? ''},${p.is_active ? 'Sí' : 'No'},,`);
+        filas.push(`${p.category},"${p.name}",${p.price_mxn ?? ''},${p.is_active ? 'Sí' : 'No'},,,,`);
       } else {
         for (const v of variantes) {
-          filas.push(`${p.category},"${p.name}",${p.price_mxn ?? ''},${p.is_active ? 'Sí' : 'No'},${v.size_label},${v.stock}`);
+          const venta = v.stock ?? 0;
+          const almacen = v.stock_almacen ?? 0;
+          filas.push(`${p.category},"${p.name}",${p.price_mxn ?? ''},${p.is_active ? 'Sí' : 'No'},${v.size_label},${venta},${almacen},${venta + almacen}`);
         }
       }
     }
