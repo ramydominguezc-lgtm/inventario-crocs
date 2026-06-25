@@ -33,6 +33,7 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
   const [nombre, setNombre] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [precio, setPrecio] = useState('');
+  const [costo, setCosto] = useState('');
   const [isNew, setIsNew] = useState(false);
   const [isHot, setIsHot] = useState(false);
   const [isActive, setIsActive] = useState(true);
@@ -56,6 +57,7 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
     setNombre(data.name);
     setDescripcion(data.description ?? '');
     setPrecio(data.price_mxn?.toString() ?? '');
+    setCosto(data.costo_promedio?.toString() ?? '');
     setIsNew(data.is_new);
     setIsHot(data.is_hot);
     setIsActive(data.is_active);
@@ -86,6 +88,7 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
       name: nombre.trim(),
       description: descripcion.trim() || null,
       price_mxn: precio ? parseFloat(precio) : null,
+      costo_promedio: costo ? parseFloat(costo) : null,
       is_new: isNew, is_hot: isHot, is_active: isActive,
       pieces_count: piezasCount ? parseInt(piezasCount, 10) : null,
       updated_at: new Date().toISOString(),
@@ -129,6 +132,42 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
       .eq('id', v.id);
   }
 
+  // Registra un pedido (surtido): suma piezas por talla al almacén y recalcula el
+  // costo promedio ponderado del producto según el stock que ya había.
+  async function registrarPedido(cantidades: Record<string, number>, costoPedidoStr: string) {
+    const costoPedido = parseFloat(costoPedidoStr);
+    const entradas = Object.entries(cantidades).filter(([, q]) => q > 0);
+    const piezasPedido = entradas.reduce((sum, [, q]) => sum + q, 0);
+    if (piezasPedido <= 0) { toast.mostrar('Pon al menos una pieza', 'error'); return; }
+    if (!costoPedidoStr || isNaN(costoPedido) || costoPedido < 0) { toast.mostrar('Costo inválido', 'error'); return; }
+
+    const stockTotalActual = variantes.filter(v => v.is_active)
+      .reduce((sum, v) => sum + v.stock + (v.stock_almacen ?? 0), 0);
+    const costoActual = costo ? parseFloat(costo) : 0;
+    const nuevoCosto = (stockTotalActual + piezasPedido) > 0
+      ? (stockTotalActual * costoActual + piezasPedido * costoPedido) / (stockTotalActual + piezasPedido)
+      : costoPedido;
+
+    // Stock nuevo entra al almacén + se registra el movimiento por talla.
+    for (const [variantId, qty] of entradas) {
+      const v = variantes.find(x => x.id === variantId);
+      if (!v) continue;
+      const nuevoAlmacen = (v.stock_almacen ?? 0) + qty;
+      await supabase.from('product_variants')
+        .update({ stock_almacen: nuevoAlmacen, stock_updated_at: new Date().toISOString() })
+        .eq('id', variantId);
+      await supabase.from('stock_movements')
+        .insert({ variant_id: variantId, product_id: productId, delta: qty, type: 'restock' });
+    }
+    await supabase.from('products')
+      .update({ costo_promedio: nuevoCosto, updated_at: new Date().toISOString() })
+      .eq('id', productId);
+
+    setVariantes(prev => prev.map(v => cantidades[v.id] ? { ...v, stock_almacen: (v.stock_almacen ?? 0) + cantidades[v.id] } : v));
+    setCosto(nuevoCosto.toFixed(2));
+    toast.mostrar('✓ Pedido registrado', 'exito');
+  }
+
   if (cargando) {
     return (
       <SafeAreaView style={s.centrado}>
@@ -142,6 +181,9 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
   const esCrocs = categoria === 'crocs';
   const variantesActivas = ordenarPorTalla(variantes.filter(v => v.is_active));
   const tallasExistentes = variantes.map(v => v.size_label);
+  const esOtros = categoria === 'otros';
+  // Stock total del producto (venta + almacén) para valuación y ganancia.
+  const totalProducto = variantesActivas.reduce((sum, v) => sum + v.stock + (v.stock_almacen ?? 0), 0);
 
   // Para charms: stock se guarda en variant con size_label='unidad'
   const varianteUnidad = variantesActivas.find(v => v.size_label === 'unidad');
@@ -319,6 +361,23 @@ export default function ProductDetailScreen({ navigation, route }: Props) {
           </>
         )}
 
+        {/* === Costos y ganancia (Crocs y Otros) === */}
+        {(esCrocs || esOtros) && variantesActivas.length > 0 && (
+          <>
+            <View style={s.seccionTitulo}>
+              <Text style={s.seccionLabel}>Costos y ganancia</Text>
+            </View>
+            <View style={s.grupo}>
+              <Campo label="Costo promedio por pieza (MXN)" C={C}>
+                <TextInput style={s.input} value={costo} onChangeText={setCosto}
+                  keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={C.textPlaceholder} />
+              </Campo>
+            </View>
+            <CostosResumen precio={precio} costo={costo} total={totalProducto} s={s} C={C} />
+            <RegistrarPedido variantes={variantesActivas} onConfirm={registrarPedido} s={s} C={C} />
+          </>
+        )}
+
         {/* Guardar */}
         <Pressable
           style={({ pressed }) => [s.botonGuardar, guardando && s.botonDesactivado, pressed && { opacity: 0.8 }]}
@@ -436,6 +495,106 @@ function VarianteStockRow({ v, productId, vista, onVenta, onAlmacen, onMover, s,
   );
 }
 
+// Resumen de costo, valor del stock y ganancia potencial.
+function CostosResumen({ precio, costo, total, s, C }: {
+  precio: string; costo: string; total: number; s: any; C: Colors;
+}) {
+  const p = parseFloat(precio) || 0;
+  const c = parseFloat(costo) || 0;
+  const gananciaUnit = p - c;
+  const valorCosto = c * total;
+  const gananciaPot = gananciaUnit * total;
+  const fmt = (n: number) => `$${Math.round(n).toLocaleString('es-MX')}`;
+  return (
+    <View style={s.resumenGrupo}>
+      <ResumenFila label="Ganancia por pieza" valor={fmt(gananciaUnit)} negativo={gananciaUnit < 0} s={s} C={C} />
+      <ResumenFila label={`Valor del stock a costo (${total} pzs)`} valor={fmt(valorCosto)} s={s} C={C} />
+      <ResumenFila label="Ganancia potencial total" valor={fmt(gananciaPot)} negativo={gananciaPot < 0} destacado s={s} C={C} />
+    </View>
+  );
+}
+
+function ResumenFila({ label, valor, negativo, destacado, s, C }: {
+  label: string; valor: string; negativo?: boolean; destacado?: boolean; s: any; C: Colors;
+}) {
+  return (
+    <View style={s.resumenFila}>
+      <Text style={s.resumenLabel}>{label}</Text>
+      <Text style={[s.resumenValor, destacado && s.resumenValorDestacado, negativo && { color: C.danger }]}>{valor}</Text>
+    </View>
+  );
+}
+
+// Formulario para registrar un pedido (surtido): piezas por talla + costo del pedido.
+function RegistrarPedido({ variantes, onConfirm, s, C }: {
+  variantes: ProductVariant[];
+  onConfirm: (cantidades: Record<string, number>, costo: string) => Promise<void>;
+  s: any; C: Colors;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const [cantidades, setCantidades] = useState<Record<string, number>>({});
+  const [costoPedido, setCostoPedido] = useState('');
+  const [guardando, setGuardando] = useState(false);
+
+  const totalPiezas = Object.values(cantidades).reduce((sum, q) => sum + q, 0);
+
+  function cambiar(id: string, delta: number) {
+    setCantidades(prev => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) + delta) }));
+  }
+  function cerrar() { setAbierto(false); setCantidades({}); setCostoPedido(''); }
+  async function confirmar() {
+    setGuardando(true);
+    await onConfirm(cantidades, costoPedido);
+    setGuardando(false);
+    cerrar();
+  }
+
+  if (!abierto) {
+    return (
+      <Pressable style={({ pressed }) => [s.pedidoBoton, pressed && { opacity: 0.8 }]} onPress={() => setAbierto(true)}>
+        <Text style={s.pedidoBotonTexto}>📦 Registrar pedido (surtido)</Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <View style={s.pedidoForm}>
+      <Text style={s.pedidoTitulo}>Piezas que entran por talla</Text>
+      {variantes.map(v => (
+        <View key={v.id} style={s.pedidoFila}>
+          <TallaLabel sizeLabel={v.size_label} s={s} C={C} />
+          <View style={s.pedidoControl}>
+            <Pressable style={({ pressed }) => [s.pedidoBtn, pressed && { opacity: 0.6 }]} onPress={() => cambiar(v.id, -1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}>
+              <Text style={s.pedidoBtnTxt}>−</Text>
+            </Pressable>
+            <Text style={s.pedidoNum}>{cantidades[v.id] ?? 0}</Text>
+            <Pressable style={({ pressed }) => [s.pedidoBtn, s.pedidoBtnMas, pressed && { opacity: 0.7 }]} onPress={() => cambiar(v.id, 1)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}>
+              <Text style={s.pedidoBtnMasTxt}>+</Text>
+            </Pressable>
+          </View>
+        </View>
+      ))}
+      <View style={{ marginTop: 14 }}>
+        <Text style={s.pedidoCostoLabel}>Costo por pieza de este pedido (MXN)</Text>
+        <TextInput style={s.input} value={costoPedido} onChangeText={setCostoPedido}
+          keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={C.textPlaceholder} />
+      </View>
+      <View style={s.pedidoAcciones}>
+        <Pressable style={({ pressed }) => [s.pedidoCancelar, pressed && { opacity: 0.7 }]} onPress={cerrar}>
+          <Text style={s.pedidoCancelarTxt}>Cancelar</Text>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [s.pedidoConfirmar, (totalPiezas === 0 || !costoPedido || guardando) && s.botonDesactivado, pressed && { opacity: 0.8 }]}
+          disabled={totalPiezas === 0 || !costoPedido || guardando}
+          onPress={confirmar}
+        >
+          {guardando ? <ActivityIndicator color={C.accentFg} /> : <Text style={s.pedidoConfirmarTxt}>Registrar {totalPiezas} pza{totalPiezas !== 1 ? 's' : ''}</Text>}
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 // Muestra la talla mexicana (cm) como dato principal y la numeración Crocs como referencia.
 // Para variantes que no son tallas Crocs (categoría "otros"), muestra la etiqueta tal cual.
 function TallaLabel({ sizeLabel, s, C }: { sizeLabel: string; s: any; C: Colors }) {
@@ -511,6 +670,32 @@ function getStyles(C: Colors) {
     moverBtnOff: { borderColor: C.border, backgroundColor: 'transparent' },
     moverBtnTxt: { fontSize: 12, fontWeight: '600', color: C.accent },
     moverBtnTxtOff: { color: C.textPlaceholder },
+
+    // Resumen de costos y ganancia
+    resumenGrupo: { marginHorizontal: 20, marginTop: 12, borderWidth: 1, borderColor: C.border, borderRadius: 10, overflow: 'hidden' },
+    resumenFila: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+    resumenLabel: { fontSize: 13, color: C.textSub, flex: 1, marginRight: 12 },
+    resumenValor: { fontSize: 15, fontWeight: '600', color: C.text },
+    resumenValorDestacado: { fontSize: 17, fontWeight: '700', color: C.accent },
+
+    // Registrar pedido (surtido)
+    pedidoBoton: { marginHorizontal: 20, marginTop: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1.5, borderColor: C.accent, borderRadius: 10, minHeight: 52, justifyContent: 'center' },
+    pedidoBotonTexto: { fontSize: 15, fontWeight: '600', color: C.accent },
+    pedidoForm: { marginHorizontal: 20, marginTop: 14, padding: 14, borderWidth: 1, borderColor: C.borderInput, borderRadius: 10, backgroundColor: C.surface },
+    pedidoTitulo: { fontSize: 12, fontWeight: '600', color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
+    pedidoFila: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border, minHeight: 52 },
+    pedidoControl: { flexDirection: 'row', alignItems: 'center' },
+    pedidoBtn: { width: 38, height: 38, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg, borderWidth: 1, borderColor: C.borderInput },
+    pedidoBtnTxt: { fontSize: 20, color: C.text, lineHeight: 22 },
+    pedidoBtnMas: { backgroundColor: C.accent, borderColor: C.accent },
+    pedidoBtnMasTxt: { fontSize: 20, color: C.accentFg, lineHeight: 22 },
+    pedidoNum: { width: 48, textAlign: 'center', fontSize: 16, fontWeight: '600', color: C.text },
+    pedidoCostoLabel: { fontSize: 11, fontWeight: '600', color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
+    pedidoAcciones: { flexDirection: 'row', gap: 10, marginTop: 16 },
+    pedidoCancelar: { flex: 1, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: C.borderInput, borderRadius: 8, minHeight: 48, justifyContent: 'center' },
+    pedidoCancelarTxt: { fontSize: 15, fontWeight: '600', color: C.textMuted },
+    pedidoConfirmar: { flex: 2, paddingVertical: 14, alignItems: 'center', backgroundColor: C.accent, borderRadius: 8, minHeight: 48, justifyContent: 'center' },
+    pedidoConfirmarTxt: { fontSize: 15, fontWeight: '600', color: C.accentFg },
 
     stockSimpleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1, borderTopColor: C.border },
     stockSimpleLabel: { fontSize: 15, color: C.text },

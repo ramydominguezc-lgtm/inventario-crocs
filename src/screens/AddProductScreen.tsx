@@ -28,6 +28,7 @@ export default function AddProductScreen({ navigation, route }: Props) {
   const [nombre, setNombre] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [precio, setPrecio] = useState('');
+  const [costo, setCosto] = useState('');
   const [isNew, setIsNew] = useState(false);
   const [isHot, setIsHot] = useState(false);
   const [imagenesUrls, setImagenesUrls] = useState<string[]>([]);
@@ -85,6 +86,7 @@ export default function AddProductScreen({ navigation, route }: Props) {
       price_mxn: precio ? parseFloat(precio) : null,
       is_new: isNew, is_hot: isHot, is_active: true,
       category,
+      costo_promedio: costo ? parseFloat(costo) : null,
       primary_image_url: imagenesUrls[0] ?? '',
       pieces_count: esCharms && piezasCount ? parseInt(piezasCount, 10) : null,
     });
@@ -171,11 +173,18 @@ export default function AddProductScreen({ navigation, route }: Props) {
                 keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={C.textPlaceholder} />
             </Campo>
           </View>
-          {esCharms && (
+          {esCharms ? (
             <View style={{ flex: 1 }}>
               <Campo label="Piezas por colección" C={C}>
                 <TextInput style={s.input} value={piezasCount} onChangeText={setPiezasCount}
                   keyboardType="number-pad" placeholder="0" placeholderTextColor={C.textPlaceholder} />
+              </Campo>
+            </View>
+          ) : (
+            <View style={{ flex: 1 }}>
+              <Campo label="Costo por pieza (MXN)" C={C}>
+                <TextInput style={s.input} value={costo} onChangeText={setCosto}
+                  keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={C.textPlaceholder} />
               </Campo>
             </View>
           )}

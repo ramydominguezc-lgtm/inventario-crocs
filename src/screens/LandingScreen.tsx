@@ -25,21 +25,25 @@ interface ResumenCategoria {
 
 type Resumen = Partial<Record<ProductCategory, ResumenCategoria>>;
 
+interface Valuacion { valorCosto: number; gananciaPot: number; }
+
 export default function LandingScreen({ navigation }: Props) {
   const C = useColors();
   const s = useMemo(() => getStyles(C), [C]);
   const { resolved, toggle } = useTheme();
   const [resumen, setResumen] = useState<Resumen>({});
+  const [valuacion, setValuacion] = useState<Valuacion>({ valorCosto: 0, gananciaPot: 0 });
   const [cargando, setCargando] = useState(true);
   const [exportando, setExportando] = useState(false);
 
   const cargarResumen = useCallback(async () => {
     const { data } = await supabase
       .from('products')
-      .select('category, is_active, product_variants(stock, is_active)');
+      .select('category, is_active, price_mxn, costo_promedio, product_variants(stock, stock_almacen, is_active)');
 
     if (data) {
       const r: Resumen = {};
+      let valorCosto = 0, gananciaPot = 0;
       for (const p of data as any[]) {
         const cat = p.category as ProductCategory;
         if (!r[cat]) r[cat] = { productos: 0, piezas: 0 };
@@ -48,8 +52,14 @@ export default function LandingScreen({ navigation }: Props) {
           .filter((v: any) => v.is_active)
           .reduce((s: number, v: any) => s + (v.stock ?? 0) + (v.stock_almacen ?? 0), 0);
         r[cat]!.piezas += piezas;
+        // Valuación: valor a costo y ganancia potencial (precio - costo) por las piezas en stock.
+        const costo = p.costo_promedio ?? 0;
+        const precio = p.price_mxn ?? 0;
+        valorCosto += costo * piezas;
+        gananciaPot += (precio - costo) * piezas;
       }
       setResumen(r);
+      setValuacion({ valorCosto, gananciaPot });
     }
     setCargando(false);
   }, []);
@@ -149,6 +159,20 @@ export default function LandingScreen({ navigation }: Props) {
           })}
         </View>
 
+        {!cargando && (
+          <View style={s.valuacionCard}>
+            <View style={s.valuacionItem}>
+              <Text style={s.valuacionLabel}>Valor del inventario (a costo)</Text>
+              <Text style={s.valuacionMonto}>${Math.round(valuacion.valorCosto).toLocaleString('es-MX')}</Text>
+            </View>
+            <View style={s.valuacionDivisor} />
+            <View style={s.valuacionItem}>
+              <Text style={s.valuacionLabel}>Ganancia potencial</Text>
+              <Text style={[s.valuacionMonto, s.valuacionGanancia]}>${Math.round(valuacion.gananciaPot).toLocaleString('es-MX')}</Text>
+            </View>
+          </View>
+        )}
+
         <View style={s.footerBotones}>
           <Pressable
             style={({ pressed }) => [s.botonExportar, pressed && { opacity: 0.6 }, exportando && { opacity: 0.4 }]}
@@ -175,6 +199,12 @@ function getStyles(C: Colors) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: C.bg },
     container: { flex: 1, paddingHorizontal: 20 },
+    valuacionCard: { flexDirection: 'row', alignItems: 'center', marginTop: 20, padding: 16, borderWidth: 1, borderColor: C.border, borderRadius: 12, backgroundColor: C.surface },
+    valuacionItem: { flex: 1, alignItems: 'center' },
+    valuacionDivisor: { width: 1, alignSelf: 'stretch', backgroundColor: C.border, marginHorizontal: 8 },
+    valuacionLabel: { fontSize: 11, color: C.textMuted, textAlign: 'center', marginBottom: 6 },
+    valuacionMonto: { fontSize: 20, fontWeight: '700', color: C.text },
+    valuacionGanancia: { color: '#16a34a' },
     header: { paddingTop: 48, paddingBottom: 40 },
     headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
     titulo: { fontSize: 32, fontWeight: '600', color: C.text, letterSpacing: -0.5 },

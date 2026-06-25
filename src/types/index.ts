@@ -29,6 +29,7 @@ export interface Product {
   slug: string;
   description: string | null;
   price_mxn: number | null;
+  costo_promedio: number | null;  // costo promedio ponderado por pedido (para calcular ganancia)
   is_new: boolean;
   is_hot: boolean;
   is_active: boolean;
